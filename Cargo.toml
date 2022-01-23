@@ -18,3 +18,4 @@ path = "src/bin.rs"
 tempfile = "3"
 
 [dependencies]
+ascii = "1.0"

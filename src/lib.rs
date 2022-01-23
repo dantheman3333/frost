@@ -1,6 +1,8 @@
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
+
+use ascii::AsciiStr;
 trait Readable {
     fn read_bag(message_type: Option<Vec<String>>) -> dyn Iterator<Item = dyn Message>;
 }
@@ -18,6 +20,92 @@ struct Record {
     data: Box<[u8]>
 }
 
+struct BagHeader{
+    // offset of first record after the chunk section
+    index_pos: u64,
+    // number of unique connections in the file
+    conn_count: u32,
+    // number of chunk records in the file 
+    chunk_count: u32,
+}
+fn read_le_u32(buf: &[u8], index: usize) -> io::Result<u32>{
+    let bytes = buf.get(index..index+4).ok_or(io::Error::new(ErrorKind::InvalidInput, "Buffer is not large enough to parse 4 bytes"))?;
+    Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
+}
+
+impl BagHeader {
+    fn from(buf: &[u8]) -> io::Result<BagHeader>{
+        let i = 0;
+        loop {
+            let field_len = read_le_u32(buf, i)? as usize;
+            let sep_pos = buf[i..field_len].iter().position(|&b| b == b'=').ok_or(io::Error::new(ErrorKind::InvalidData, format!("Expected = in string: {:?}", &buf[i..i+field_len])))?;
+            
+            
+
+            if i >= buf.len(){
+                break;
+            }
+        }
+
+        todo!()
+    }
+}
+
+struct ChunkHeader {
+    // compression type for the data 
+    compression: String,
+    // size in bytes of the uncompressed chunk 
+    size: u32,
+}
+
+struct ConnectionHeader {
+    // unique connection ID 
+    conn: u32,
+    // topic on which the messages are stored 
+    topic: String
+}
+
+struct IndexDataHeader {
+    // index data record version 
+    ver: u32,
+    // connection ID 
+    conn: u32,
+    // number of messages on conn in the preceding chunk 
+    count: u32
+}
+
+struct IndexData {
+    // time at which the message was received 
+    time: u64,
+    // offset of message data record in uncompressed chunk data 
+    offset: u32,
+}
+
+struct ChunkInfoHeader{
+    version: u32,
+    chunk_pos: u64,
+    // timestamp of earliest message in the chunk
+    start_time: u64,
+    // timestamp of latest message in the chunk
+    end_time: u64,
+    // number of connections in the chunk 
+    connection_count: u32,
+}
+
+struct ChunkInfo {
+    // docs are inconsistent little-endian long integer 4 bytes 
+    // connection id
+    conn: u32,
+    // number of messages that arrived on this connection in the chunk 
+    count: u32,
+}
+
+struct MessageData {
+    // ID for connection on which message arrived 
+    conn: u32,
+    // time at which the message was received 
+    time: u64
+}
 impl Bag {
     fn from<P: Into<PathBuf> + AsRef<Path>>(file_path: P) -> io::Result<Bag> {
         Ok(Bag {
@@ -47,14 +135,12 @@ impl Bag {
         let mut len_buf= [0u8; 4];
         reader.read_exact(&mut len_buf)?;
         let header_len = u32::from_le_bytes(len_buf.try_into().unwrap());
-        print!("header len {}\n", header_len);
 
         let mut header = vec![0u8; header_len as usize];
         reader.read_exact(&mut header)?;
 
         reader.read_exact(&mut len_buf)?;
         let data_len = u32::from_le_bytes(len_buf.try_into().unwrap());
-        print!("data len {}\n", data_len);
         
         let mut data = vec![0u8; data_len as usize];
         reader.read_exact(&mut data)?;
