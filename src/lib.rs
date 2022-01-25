@@ -1,8 +1,9 @@
+#![allow(dead_code)]
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
 
-use ascii::AsciiStr;
+
 trait Readable {
     fn read_bag(message_type: Option<Vec<String>>) -> dyn Iterator<Item = dyn Message>;
 }
@@ -20,6 +21,7 @@ struct Record {
     data: Box<[u8]>
 }
 
+#[derive(Debug)]
 struct BagHeader{
     // offset of first record after the chunk section
     index_pos: u64,
@@ -28,26 +30,76 @@ struct BagHeader{
     // number of chunk records in the file 
     chunk_count: u32,
 }
+#[derive(Debug)]
+#[repr(u8)]
+enum OpCode {
+    BagHeaderOp = 0x03,
+}
+
+fn read_u8(buf: &[u8], index: usize) -> io::Result<u8>{
+    let bytes = buf.get(index..index+1)
+        .ok_or(io::Error::new(ErrorKind::InvalidInput, "Buffer is not large enough to parse 1 bytes"))?;
+    Ok(u8::from_le_bytes(bytes.try_into().unwrap()))
+}
+
 fn read_le_u32(buf: &[u8], index: usize) -> io::Result<u32>{
-    let bytes = buf.get(index..index+4).ok_or(io::Error::new(ErrorKind::InvalidInput, "Buffer is not large enough to parse 4 bytes"))?;
+    let bytes = buf.get(index..index+4)
+        .ok_or(io::Error::new(ErrorKind::InvalidInput, "Buffer is not large enough to parse 4 bytes"))?;
     Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
 }
 
+fn read_le_u64(buf: &[u8], index: usize) -> io::Result<u64>{
+    let bytes = buf.get(index..index+8)
+    .ok_or(io::Error::new(ErrorKind::InvalidInput, "Buffer is not large enough to parse 8 bytes"))?;
+    Ok(u64::from_le_bytes(bytes.try_into().unwrap()))
+}
+
+fn field_sep_index(buf: &[u8]) -> io::Result<usize> {
+    buf.iter().position(|&b| b == b'=')
+        .ok_or(io::Error::new(ErrorKind::InvalidData, format!("Expected '=' in buffer: {:?}", &buf)))
+}
+
+
 impl BagHeader {
     fn from(buf: &[u8]) -> io::Result<BagHeader>{
-        let i = 0;
+        let mut i = 0;
+        
+        let mut index_pos = None;
+        let mut conn_count = None;
+        let mut chunk_count = None;
+
         loop {
             let field_len = read_le_u32(buf, i)? as usize;
-            let sep_pos = buf[i..field_len].iter().position(|&b| b == b'=').ok_or(io::Error::new(ErrorKind::InvalidData, format!("Expected = in string: {:?}", &buf[i..i+field_len])))?;
+            i += 4;
+            let sep_pos = i + field_sep_index(&buf[i..i+field_len])?;
             
+            let name = &buf[i..sep_pos];
+            let value  = &buf[(sep_pos+1)..(i+field_len)];
             
-
+            match name {
+                b"index_pos" => index_pos = Some(read_le_u64(value, 0)?),
+                b"conn_count" => conn_count = Some(read_le_u32(value, 0)?),
+                b"chunk_count" => chunk_count = Some(read_le_u32(value, 0)?),
+                b"op" => {
+                    let op = read_u8(value, 0)?;
+                    if op != OpCode::BagHeaderOp as u8 {
+                        return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected op {:?}, found {:?}", OpCode::BagHeaderOp, op)))
+                    }
+                }
+                _ => return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected field {} in BagHeader", String::from_utf8_lossy(name))))
+            }
+            i += field_len;
+        
             if i >= buf.len(){
                 break;
             }
         }
 
-        todo!()
+        Ok(BagHeader{
+         index_pos: index_pos.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'index_pos' in BagHeader")))?,
+         conn_count: conn_count.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'conn_count' in BagHeader")))?,
+         chunk_count: chunk_count.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'chunk_count' in BagHeader")))?
+        })
     }
 }
 
@@ -139,6 +191,9 @@ impl Bag {
         let mut header = vec![0u8; header_len as usize];
         reader.read_exact(&mut header)?;
 
+        let h = BagHeader::from(&header);
+        println!("{:?}", h);
+
         reader.read_exact(&mut len_buf)?;
         let data_len = u32::from_le_bytes(len_buf.try_into().unwrap());
         
@@ -155,7 +210,7 @@ mod tests {
 
     use tempfile::{tempdir, TempDir};
 
-    use crate::Bag;
+    use crate::{Bag, field_sep_index};
 
     fn write_test_fixture() -> (TempDir, PathBuf) {
         let bytes = include_bytes!("../tests/fixtures/test.bag");
@@ -186,5 +241,15 @@ mod tests {
         bufreader.read_line(&mut String::new()).unwrap();
 
         bag.parse_record(&mut bufreader);
+    }
+
+    #[test]
+    fn test_field_sep_position(){
+        let buf = b"hello=banana";
+        assert_eq!(field_sep_index(buf).unwrap(), 5);
+        assert_eq!(field_sep_index(&buf[2..8]).unwrap(), 3);
+
+        let buf = b"theresnosep";
+        assert!(field_sep_index(buf).is_err());
     }
 }
