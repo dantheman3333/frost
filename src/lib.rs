@@ -86,7 +86,7 @@ impl BagHeader {
                         return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected op {:?}, found {:?}", OpCode::BagHeaderOp, op)))
                     }
                 }
-                _ => return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected field {} in BagHeader", String::from_utf8_lossy(name))))
+                _ => return Err(io::Error::new(ErrorKind::InvalidData, format!("Unexpected field {} in BagHeader", String::from_utf8_lossy(name))))
             }
             i += field_len;
         
