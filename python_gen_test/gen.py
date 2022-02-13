@@ -1,23 +1,28 @@
 import os
 
 import rosbag
+import rospy
 from std_msgs.msg import Int32, String
 
 FIXTURE_PATH = './tests/fixtures/test.bag'
+NUM_WRITE = 1000
 
 def main():
     os.makedirs(os.path.dirname(FIXTURE_PATH), exist_ok=True)
     bag = rosbag.Bag(FIXTURE_PATH, 'w')
 
     try:
-        s = String()
-        s.data = 'foo'
+        for i in range(NUM_WRITE):
+            t = rospy.Time(secs=i)
 
-        i = Int32()
-        i.data = 42
+            s_msg = String()
+            s_msg.data = 'foo_{}'.format(i)
 
-        bag.write('chatter', s)
-        bag.write('numbers', i)
+            i_msg = Int32()
+            i_msg.data = i
+
+            bag.write('/chatter', s_msg, t=t)
+            bag.write('/numbers', i_msg, t=t)
     finally:
         bag.close()
     
