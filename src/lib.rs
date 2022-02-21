@@ -9,7 +9,6 @@ use std::path::{Path, PathBuf};
 
 struct Bag {
     file_path: PathBuf,
-    file: File,
 }
 
 struct Time {
@@ -195,9 +194,10 @@ impl ChunkHeader<'_> {
     }
 }
 
+#[derive(Debug)]
 struct ConnectionHeader{
     connection_id: u32, 
-    topic: String
+    topic: String,
 }
 
 impl ConnectionHeader{
@@ -235,9 +235,11 @@ impl ConnectionHeader{
     }
 }
 
+#[derive(Debug)]
 struct ConnectionData {
     connection_id: u32, 
     topic: String,
+    data_type: String,
     md5sum: String,
     message_definition: String,
     caller_id: Option<String>,
@@ -248,6 +250,7 @@ impl ConnectionData {
     fn from(buf: &[u8], connection_id: u32, topic: String) -> io::Result<ConnectionData>{
         let mut i = 0;
         
+        let mut data_type = None;
         let mut md5sum = None;
         let mut message_definition = None;
         let mut caller_id = None;
@@ -259,6 +262,7 @@ impl ConnectionData {
             
             match name {
                 b"topic" => (),
+                b"type" => data_type = Some(String::from_utf8_lossy(value).to_string()),
                 b"md5sum" => md5sum =  Some(String::from_utf8_lossy(value).to_string()),
                 b"message_definition" => message_definition =  Some(String::from_utf8_lossy(value).to_string()),
                 b"callerid" => caller_id =  Some(String::from_utf8_lossy(value).to_string()),
@@ -274,6 +278,7 @@ impl ConnectionData {
         Ok(ConnectionData{
             connection_id,
             topic,
+            data_type:  data_type.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'data_type' in ConnectionData")))?,
             md5sum: md5sum.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'md5sum' in ConnectionData")))?,
             message_definition: message_definition.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'message_definition' in ConnectionData")))?,
             caller_id,
@@ -481,11 +486,16 @@ impl Bag {
 
         let bag_header = Bag::parse_bag_header(&mut reader)?;
 
-
+        for _ in 0..bag_header.conn_count {
+            let conn = Bag::parse_connection(&mut reader)?;
+            println!("{:?}", conn);
+        }
 
         println!("{:?}", bag_header);
 
-        todo!()
+        Ok(Bag {
+            file_path: path
+        })
     }
 
     fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<()> {
@@ -549,12 +559,10 @@ impl Bag {
                 Ok(op) => println!("Header is {:?}", op),
                 Err(_) => println!("Unknown header!")
             }
-    
             reader.read_exact(&mut len_buf)?;
             let data_len = u32::from_le_bytes(len_buf.try_into().unwrap());  
             let mut data = vec![0u8; data_len as usize];
             reader.read_exact(&mut data)?;
-            
         }
     }
 
@@ -648,7 +656,7 @@ mod tests {
         let (_tmp_dir, file_path) = write_test_fixture();
         let bag = Bag::from(&file_path).unwrap();
 
-        let file = File::open(bag.file_path.clone()).unwrap();
+        let file = File::open(file_path).unwrap();
         let mut bufreader = BufReader::new(file);
         // skip version check
         bufreader.read_line(&mut String::new()).unwrap();
