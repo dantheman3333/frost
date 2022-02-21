@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -194,27 +195,25 @@ impl ChunkHeader<'_> {
     }
 }
 
-struct ConnectionHeader<'a> {
-    // unique connection ID 
-    conn: u32,
-    // topic on which the messages are stored 
-    topic: Cow<'a, str>
+struct ConnectionHeader{
+    connection_id: u32, 
+    topic: String
 }
 
-impl ConnectionHeader<'_> {
+impl ConnectionHeader{
     fn from(buf: &[u8]) -> io::Result<ConnectionHeader>{
         let mut i = 0;
         
         let mut topic = None;
-        let mut conn = None;
+        let mut connection_id = None;
 
         loop {
             let (new_index, name, value) = parse_field(buf, i)?;
             i = new_index;
             
             match name {
-                b"topic" => topic = Some(String::from_utf8_lossy(value)),
-                b"conn" => conn = Some(read_le_u32(value)?),
+                b"topic" => topic = Some(String::from_utf8_lossy(value).to_string()),
+                b"conn" => connection_id = Some(read_le_u32(value)?),
                 b"op" => {
                     let op = read_u8(value)?;
                     if op != OpCode::ConnectionHeaderOp as u8 {
@@ -230,8 +229,55 @@ impl ConnectionHeader<'_> {
         }
 
         Ok(ConnectionHeader{
-            conn: conn.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'conn' in ConnectionHeader")))?,
+            connection_id: connection_id.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'connection_id' in ConnectionHeader")))?,
             topic: topic.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'topic' in ConnectionHeader")))?,
+        })
+    }
+}
+
+struct ConnectionData {
+    connection_id: u32, 
+    topic: String,
+    md5sum: String,
+    message_definition: String,
+    caller_id: Option<String>,
+    latching: bool
+}
+
+impl ConnectionData {
+    fn from(buf: &[u8], connection_id: u32, topic: String) -> io::Result<ConnectionData>{
+        let mut i = 0;
+        
+        let mut md5sum = None;
+        let mut message_definition = None;
+        let mut caller_id = None;
+        let mut latching = false;
+
+        loop {
+            let (new_index, name, value) = parse_field(buf, i)?;
+            i = new_index;
+            
+            match name {
+                b"topic" => (),
+                b"md5sum" => md5sum =  Some(String::from_utf8_lossy(value).to_string()),
+                b"message_definition" => message_definition =  Some(String::from_utf8_lossy(value).to_string()),
+                b"callerid" => caller_id =  Some(String::from_utf8_lossy(value).to_string()),
+                b"latching" => latching =  value == b"1",
+                _ => return Err(io::Error::new(ErrorKind::InvalidData, format!("Unexpected field {} in ConnectionData", String::from_utf8_lossy(name))))
+            }
+        
+            if i >= buf.len(){
+                break;
+            }
+        }
+
+        Ok(ConnectionData{
+            connection_id,
+            topic,
+            md5sum: md5sum.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'md5sum' in ConnectionData")))?,
+            message_definition: message_definition.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'message_definition' in ConnectionData")))?,
+            caller_id,
+            latching,
         })
     }
 }
@@ -426,33 +472,73 @@ impl MessageData {
 
 impl Bag {
     fn from<P: Into<PathBuf> + AsRef<Path>>(file_path: P) -> io::Result<Bag> {
-        Ok(Bag {
-            file_path: file_path.as_ref().into(),
-            file: File::open(file_path)?,
-        })
+        let path: PathBuf = file_path.as_ref().into(); 
+        let file  = File::open(file_path)?; 
+        
+        let mut reader = BufReader::new(file);
+        
+        Bag::version_check(&mut reader)?;
+
+        let bag_header = Bag::parse_bag_header(&mut reader)?;
+
+
+
+        println!("{:?}", bag_header);
+
+        todo!()
     }
 
-    fn version_check(self) -> io::Result<()> {
-        let mut reader = BufReader::new(self.file);
-        let mut buf = String::new();
-
-        match reader.read_line(&mut buf) {
-            Ok(_) => {
-                let line = buf.trim_end();
-                if line == "#ROSBAG V2.0" {
-                    Ok(())
-                } else {
-                    Err(io::Error::new(ErrorKind::InvalidData, format!("Got unexpected version data: {}", line)))
-                }
-            }
-            Err(e) => Err(e),
+    fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<()> {
+        let mut buf = [0u8; 13];
+        let expected = b"#ROSBAG V2.0\n";
+        reader.read_exact(&mut buf)?;
+        if buf == *expected {
+            Ok(())
+        } else {
+            Err(io::Error::new(ErrorKind::InvalidData, format!("Got unexpected rosbag version: {}", String::from_utf8_lossy(&buf))))
         }
+    }
+
+    fn get_lengthed_bytes<R: Read + Seek>(reader: &mut R) -> io::Result<Vec<u8>> {
+        // Get a vector of bytes from a reader when the first 4 bytes are the length
+        // Ex: with <header_len><header> or <data_len><data>, this function returns either header or data
+        let mut len_buf= [0u8; 4];
+        reader.read_exact(&mut len_buf)?;
+    
+        let len = u32::from_le_bytes(len_buf.try_into().unwrap());
+        let mut bytes = vec![0u8; len as usize];
+        reader.read_exact(&mut bytes)?;
+
+        Ok(bytes)
+    }
+
+    fn parse_bag_header<R: Read + Seek>(reader: &mut R) -> io::Result<BagHeader> {
+        let bag_header = BagHeader::from(&Bag::get_lengthed_bytes(reader)?)?;
+
+        if bag_header.index_pos == 0 {
+            return Err(io::Error::new(ErrorKind::InvalidData, "Unindexed bag"))
+        }
+        //TODO: BufReader's .seek() always discards the buffer
+        reader.seek(std::io::SeekFrom::Start(bag_header.index_pos))?;
+
+        Ok(bag_header)
+    }
+
+    fn parse_connection<R: Read + Seek>(reader: &mut R) -> io::Result<ConnectionData> {
+        let connection_header = ConnectionHeader::from(&Bag::get_lengthed_bytes(reader)?)?;
+        let data = Bag::get_lengthed_bytes(reader)?; 
+        ConnectionData::from(&data, connection_header.connection_id, connection_header.topic.to_string())
     }
 
     fn parse_records<R: Read + Seek>(self, reader: &mut R) -> io::Result<()> {
         loop {
             let mut len_buf= [0u8; 4];
-            reader.read_exact(&mut len_buf)?;
+            if let Err(e) = reader.read_exact(&mut len_buf) {
+                match e.kind() {
+                    ErrorKind::UnexpectedEof => return Ok(()),
+                    _ => return Err(e)
+                }
+            }
             let header_len = u32::from_le_bytes(len_buf.try_into().unwrap());
     
             let mut header = vec![0u8; header_len as usize];
@@ -470,8 +556,6 @@ impl Bag {
             reader.read_exact(&mut data)?;
             
         }
-
-        Ok(())
     }
 
     fn parse_record<R: Read + Seek>(self, reader: &mut R) -> io::Result<Record> {
@@ -535,8 +619,15 @@ mod tests {
     #[test]
     fn version_check() {
         let (_tmp_dir, file_path) = write_test_fixture();
-        let bag = Bag::from(&file_path).unwrap();
-        assert!(bag.version_check().is_ok())
+        let file  = File::open(file_path).unwrap(); 
+        let mut reader = BufReader::new(file);
+        assert!(Bag::version_check(&mut reader).is_ok())
+    }
+
+    #[test]
+    fn bag_from() {
+        let (_tmp_dir, file_path) = write_test_fixture();
+        Bag::from(file_path).unwrap();
     }
 
     #[test]
