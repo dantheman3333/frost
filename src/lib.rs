@@ -152,14 +152,19 @@ impl BagHeader {
     }
 }
 
-struct ChunkHeader<'a> {
-    // compression type for the data 
-    compression: Cow<'a, str>,
-    // size in bytes of the uncompressed chunk 
-    size: u32,
+struct Chunk {
+    compression: String,
+    uncompressed_size: u32,
+    compressed_size: u32,
+    chunk_pos: usize,
 }
 
-impl ChunkHeader<'_> {
+struct ChunkHeader {
+    compression: String,
+    uncompressed_size: u32,
+}
+
+impl ChunkHeader {
     fn from(buf: &[u8]) -> io::Result<ChunkHeader>{
         let mut i = 0;
         
@@ -171,7 +176,7 @@ impl ChunkHeader<'_> {
             i = new_index;
 
             match name {
-                b"compression" => compression = Some(String::from_utf8_lossy(value)),
+                b"compression" => compression = Some(String::from_utf8_lossy(value).to_string()),
                 b"size" => size = Some(read_le_u32(value)?),
                 b"op" => {
                     let op = read_u8(value)?;
@@ -189,7 +194,7 @@ impl ChunkHeader<'_> {
 
         Ok(ChunkHeader{
             compression: compression.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'compression' in ChunkHeader")))?,
-            size: size.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'size' in ChunkHeader")))?,
+            uncompressed_size: size.ok_or(io::Error::new(ErrorKind::InvalidData, format!("Missing field 'size' in ChunkHeader")))?,
         })
     }
 }
@@ -534,13 +539,20 @@ impl Bag {
         Ok(bag_header)
     }
 
-    fn parse_connection<R: Read + Seek>(reader: &mut R) -> io::Result<ConnectionData> {
-        let connection_header = ConnectionHeader::from(&Bag::get_lengthed_bytes(reader)?)?;
+    fn parse_connection<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<ConnectionData> {
+        let connection_header = ConnectionHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?; 
         ConnectionData::from(&data, connection_header.connection_id, connection_header.topic.to_string())
     }
 
+    fn parse_chunk<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<Chunk> {
+        let chunk_header = ChunkHeader::from(header_buf)?;
+    }
+
     fn parse_records<R: Read + Seek>(self, reader: &mut R) -> io::Result<()> {
+        let mut last_chunk_pos: Option<u32> = None;
+        let mut chunks: Vec<ChunkHeader>;
+        let mut connections: Vec<ConnectionData>;
         loop {
             let mut len_buf= [0u8; 4];
             if let Err(e) = reader.read_exact(&mut len_buf) {
@@ -551,13 +563,23 @@ impl Bag {
             }
             let header_len = u32::from_le_bytes(len_buf.try_into().unwrap());
     
-            let mut header = vec![0u8; header_len as usize];
-            reader.read_exact(&mut header)?;
+            let mut header_buf = vec![0u8; header_len as usize];
+            reader.read_exact(&mut header_buf)?;
     
-            let op = read_header_op(&header);
+            let op = read_header_op(&header_buf)?;
+            println!("Header is {:?}", op);
+
             match op {
-                Ok(op) => println!("Header is {:?}", op),
-                Err(_) => println!("Unknown header!")
+                OpCode::BagHeaderOp => todo!(),
+                OpCode::ChunkHeaderOp => {
+                    chunks.push(Bag::parse_chunk(&header_buf, reader)?);
+                }
+                OpCode::ConnectionHeaderOp => {
+                    connections.push(Bag::parse_connection(&header_buf, reader)?);
+                }
+                OpCode::MessageDataOp => todo!(),
+                OpCode::IndexDataHeaderOp => todo!(),
+                OpCode::ChunkInfoHeaderOp => todo!(),
             }
             reader.read_exact(&mut len_buf)?;
             let data_len = u32::from_le_bytes(len_buf.try_into().unwrap());  
