@@ -364,7 +364,7 @@ impl ConnectionData {
         Ok(ConnectionData{
             connection_id,
             topic,
-            data_type:  data_type.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'data_type' in ConnectionData"))?,
+            data_type: data_type.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'data_type' in ConnectionData"))?,
             md5sum: md5sum.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'md5sum' in ConnectionData"))?,
             message_definition: message_definition.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'message_definition' in ConnectionData"))?,
             caller_id,
@@ -542,8 +542,7 @@ impl Bag {
     fn parse_chunk_info<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(ChunkInfoHeader, Vec<ChunkInfoData>)> {
         let chunk_info_header = ChunkInfoHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
-        println!("chunkinfodata size {} bytes", data.len());
-        data.windows(8).step_by(8).for_each(|b| println!("{:?}", b));
+
         let chunk_info_data: Vec<ChunkInfoData> = data.windows(8).step_by(8).flat_map(ChunkInfoData::from).collect();
 
         if chunk_info_data.len() != chunk_info_header.connection_count as usize {
@@ -556,6 +555,7 @@ impl Bag {
     fn parse_index<R: Read + Seek>(header_buf: &[u8], reader: &mut R, chunk_pos: u64) -> io::Result<(ConnectionID, Vec<IndexData>)> {
         let index_data_header = IndexDataHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?; 
+        
         let index_data: Vec<IndexData> = data.windows(12).step_by(12).flat_map(|buf| IndexData::from(buf, chunk_pos)).collect();
 
         if index_data.len() != index_data_header.count as usize {
