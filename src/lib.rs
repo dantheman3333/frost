@@ -8,8 +8,12 @@ type ConnectionID = u32;
 
 struct Bag {
     file_path: PathBuf,
+    chunk_metadata: Vec<ChunkMetadata>,
+    connection_data: BTreeMap<ConnectionID, ConnectionData>,
+    index_data: BTreeMap<ConnectionID, Vec<IndexData>> 
 }
 
+#[derive(Clone, Copy)]
 struct Time {
     secs: u32,
     nsecs: u32
@@ -161,12 +165,13 @@ impl BagHeader {
 /// As ChunkHeader and ChunkInfoHeaders are separate, after parsing all records, combine that info into a Chunk
 struct ChunkMetadata {
     compression: String,
-    uncompressed_size: usize,
-    compressed_size: usize,
-    chunk_pos: usize,
+    uncompressed_size: u32,
+    compressed_size: u32,
+    chunk_pos: u64,
     start_time: Time,
     end_time: Time,
-    connection_count: usize,
+    connection_count: u32,
+    message_counts: BTreeMap<ConnectionID, u32>
 }
 
 struct ChunkHeader {
@@ -479,12 +484,13 @@ impl Bag {
         
         Bag::version_check(&mut reader)?;
 
-        Bag::parse_records(&mut reader)?;
-
-        
+        let (chunk_metadata, connection_data, index_data) = Bag::parse_records(&mut reader)?;
 
         Ok(Bag {
-            file_path: path
+            file_path: path,
+            chunk_metadata,
+            connection_data,
+            index_data,
         })
     }
 
@@ -531,12 +537,12 @@ impl Bag {
         ConnectionData::from(&data, connection_header.connection_id, connection_header.topic)
     }
 
-    fn parse_chunk<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(u64, ChunkHeader)> {
+    fn parse_chunk<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(u64, u32, ChunkHeader)> {
         let chunk_header = ChunkHeader::from(header_buf)?;
         let data_len = read_le_u32(reader)?;
         let chunk_pos = reader.stream_position()?;
         reader.seek(io::SeekFrom::Current(data_len as i64))?; // skip reading the chunk
-        Ok((chunk_pos, chunk_header))
+        Ok((chunk_pos, data_len, chunk_header))
     }
 
     fn parse_chunk_info<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(ChunkInfoHeader, Vec<ChunkInfoData>)> {
@@ -565,9 +571,9 @@ impl Bag {
         Ok((index_data_header.connection_id, index_data))
     }
 
-    fn parse_records<R: Read + Seek>(reader: &mut R) -> io::Result<()> {
+    fn parse_records<R: Read + Seek>(reader: &mut R) -> io::Result<(Vec<ChunkMetadata>, BTreeMap<ConnectionID, ConnectionData>, BTreeMap<ConnectionID, Vec<IndexData>>)> {
         let mut bag_header: Option<BagHeader> = None;
-        let mut chunk_headers: BTreeMap<u64, ChunkHeader> = BTreeMap::new();
+        let mut chunk_headers: Vec<(u64, u32, ChunkHeader)> = Vec::new();
         let mut chunk_infos: Vec<(ChunkInfoHeader, Vec<ChunkInfoData>)> = Vec::new();
         let mut connections: Vec<ConnectionData> = Vec::new();
         let mut index_data: BTreeMap<ConnectionID, Vec<IndexData>> = BTreeMap::new();
@@ -588,16 +594,16 @@ impl Bag {
             reader.read_exact(&mut header_buf)?;
     
             let op = read_header_op(&header_buf)?;
-            println!("Header is {:?}", op);
+            // println!("Header is {:?}", op);
 
             match op {
                 OpCode::BagHeader => {
                     bag_header = Some(Bag::parse_bag_header(&header_buf, reader)?);
                 }
                 OpCode::ChunkHeader => {
-                    let (chunk_pos, chunk_header) = Bag::parse_chunk(&header_buf, reader)?;
+                    let (chunk_pos, compressed_size, chunk_header) = Bag::parse_chunk(&header_buf, reader)?;
                     last_chunk_pos = Some(chunk_pos);
-                    chunk_headers.insert(chunk_pos, chunk_header);
+                    chunk_headers.push((chunk_pos, compressed_size, chunk_header));
                 }
                 OpCode::IndexDataHeader => {
                     let chunk_pos = last_chunk_pos.ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "Expected a Chunk before reading IndexData"))?;
@@ -614,8 +620,35 @@ impl Bag {
             }
         }
 
-        println!("{:?}", bag_header);
-        Ok(())
+        let bag_header = bag_header.ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "Missing BagHeader"))?;
+        if bag_header.chunk_count as usize != chunk_headers.len() {
+            return Err( io::Error::new(ErrorKind::InvalidData, format!("Expected {} ChunkHeader, found {}", bag_header.chunk_count, chunk_headers.len())))
+        }
+        if bag_header.chunk_count as usize != chunk_infos.len() {
+            return Err( io::Error::new(ErrorKind::InvalidData, format!("Expected {} ChunkInfoHeader, found {}", bag_header.chunk_count, chunk_infos.len())))
+        }
+        if bag_header.conn_count as usize != connections.len() {
+            return Err( io::Error::new(ErrorKind::InvalidData, format!("Expected {} Connections, found {}", bag_header.conn_count, connections.len())))
+        }
+
+        let chunk_metadata: Vec<ChunkMetadata> = chunk_headers.into_iter().flat_map(|(chunk_pos, compressed_size, chunk_header)|{
+            chunk_infos.iter().find(|(chunk_info_header, _)| chunk_pos == chunk_info_header.chunk_pos)
+                              .map(|(chunk_info_header, chunk_data)| {
+                ChunkMetadata{
+                    compression: chunk_header.compression,
+                    uncompressed_size: chunk_header.uncompressed_size,
+                    compressed_size,
+                    chunk_pos,
+                    start_time: chunk_info_header.start_time,
+                    end_time: chunk_info_header.end_time,
+                    connection_count: chunk_info_header.connection_count,
+                    message_counts: chunk_data.iter().map(|data| (data.connection_id, data.count)).collect::<BTreeMap<ConnectionID, u32>>()
+                }
+            })
+        }).collect();
+
+        let connection_data: BTreeMap<ConnectionID, ConnectionData> = connections.into_iter().map(|data| (data.connection_id, data)).collect();
+        Ok((chunk_metadata, connection_data, index_data))
     }
 }
 
