@@ -6,8 +6,8 @@ use std::path::{Path, PathBuf};
 
 type ConnectionID = u32;
 
-struct Bag {
-    file_path: PathBuf,
+pub struct Bag {
+    pub file_path: PathBuf,
     chunk_metadata: Vec<ChunkMetadata>,
     connection_data: BTreeMap<ConnectionID, ConnectionData>,
     index_data: BTreeMap<ConnectionID, Vec<IndexData>> 
@@ -30,22 +30,6 @@ impl Time {
     }
 }
 
-struct Record {
-    header_len: u32,
-    header: Box<[u8]>,
-    data_len: u32,
-    data: Box<[u8]>
-}
-
-#[derive(Debug)]
-struct BagHeader{
-    // offset of first record after the chunk section
-    index_pos: u64,
-    // number of unique connections in the file
-    conn_count: u32,
-    // number of chunk records in the file 
-    chunk_count: u32,
-}
 #[derive(Debug)]
 #[repr(u8)]
 enum OpCode {
@@ -122,6 +106,12 @@ fn parse_field(buf: &[u8], i: usize) -> io::Result<(usize, &[u8], &[u8])>{
     Ok((i, name, value))
 }
 
+#[derive(Debug)]
+struct BagHeader{
+    index_pos: u64,
+    conn_count: u32,
+    chunk_count: u32,
+}
 
 impl BagHeader {
     fn from(buf: &[u8]) -> io::Result<BagHeader>{
@@ -476,7 +466,7 @@ impl MessageData {
 }
 
 impl Bag {
-    fn from<P: Into<PathBuf> + AsRef<Path>>(file_path: P) -> io::Result<Bag> {
+    pub fn from<P: Into<PathBuf> + AsRef<Path>>(file_path: P) -> io::Result<Bag> {
         let path: PathBuf = file_path.as_ref().into(); 
         let file  = File::open(file_path)?; 
         

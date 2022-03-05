@@ -1,18 +1,29 @@
+import argparse
 import os
 
 import rosbag
 import rospy
 from std_msgs.msg import Int32, String
 
-FIXTURE_PATH = './tests/fixtures/test.bag'
-NUM_WRITE = 1000
+bag_path = './tests/fixtures/test.bag'
+LARGE_FIXTURE_PATH = './tests/fixtures/test_large.bag'
+SMALL_NUM_WRITE = 100000
+SMALL_NUM_WRITE = 1000
 
 def main():
-    os.makedirs(os.path.dirname(FIXTURE_PATH), exist_ok=True)
-    bag = rosbag.Bag(FIXTURE_PATH, 'w')
+    parser = argparse.ArgumentParser("Generate a bag")
+    parser.add_argument("-o", "--output", required=True)
+    parser.add_argument("-c", "--count", required=True, type=int)
+    args = parser.parse_args()
+
+    bag_path = args.output
+    count = args.count
+
+    os.makedirs(os.path.dirname(bag_path), exist_ok=True)
+    bag = rosbag.Bag(bag_path, 'w')
 
     try:
-        for i in range(NUM_WRITE):
+        for i in range(count):
             t = rospy.Time(secs=i)
 
             s_msg = String()
@@ -26,7 +37,7 @@ def main():
     finally:
         bag.close()
     
-    print("Wrote {}".format(FIXTURE_PATH))
+    print("Wrote {}".format(bag_path))
 
 if __name__ == "__main__":
     main()

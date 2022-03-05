@@ -7,15 +7,13 @@ edition = "2021"
 
 
 [lib]
-name = "mylib"
+name = "frost"
 path = "src/lib.rs"
 
 [[bin]]
-name = "mybin"
+name = "frostinfo"
 path = "src/bin.rs"
 
 [dev-dependencies]
 tempfile = "3"
 
-[dependencies]
-ascii = "1.0"
