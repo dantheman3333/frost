@@ -2,9 +2,7 @@
 name = "frost"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
+author = "Dan Kramer"
 
 [lib]
 name = "frost"
@@ -12,8 +10,14 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "frostinfo"
-path = "src/bin.rs"
+path = "src/bin/frostinfo.rs"
+
+[[bin]]
+name = "frostcat"
+path = "src/bin/frostcat.rs"
 
 [dev-dependencies]
 tempfile = "3"
 
+[dependencies]
+clap = { version = "3.1.5", features = ["derive"] }

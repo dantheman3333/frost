@@ -1,4 +1,4 @@
 /target
 Cargo.lock
 /venv
-/tests/fixtures
+/tests/fixtures/test_large.bag
