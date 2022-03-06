@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 
 type ConnectionID = u32;
 
+mod util;
+
 pub struct Bag {
     pub file_path: PathBuf,
     chunk_metadata: Vec<ChunkMetadata>,
@@ -24,8 +26,8 @@ impl Time {
         Time { secs, nsecs }
     }
     fn from(buf: &[u8]) -> io::Result<Time> {
-        let secs = parse_le_u32(buf)?;
-        let nsecs = parse_le_u32_at(buf, 4)?;
+        let secs = util::parsing::parse_le_u32(buf)?;
+        let nsecs = util::parsing::parse_le_u32_at(buf, 4)?;
         Ok(Time { secs, nsecs })
     }
 }
@@ -55,14 +57,6 @@ impl OpCode {
     }
 }
 
-fn parse_u8(buf: &[u8]) -> io::Result<u8>{
-    parse_u8_at(buf, 0)
-}
-fn parse_u8_at(buf: &[u8], index: usize) -> io::Result<u8>{
-    let bytes = buf.get(index..index+1)
-        .ok_or_else(||io::Error::new(ErrorKind::InvalidInput, "Buffer is not large enough to parse 1 bytes"))?;
-    Ok(u8::from_le_bytes(bytes.try_into().unwrap()))
-}
 
 fn read_le_u32<R: Read + Seek>(reader: &mut R)-> io::Result<u32> {
     let mut len_buf= [0u8; 4];
@@ -70,23 +64,6 @@ fn read_le_u32<R: Read + Seek>(reader: &mut R)-> io::Result<u32> {
     Ok(u32::from_le_bytes(len_buf))
 }
 
-fn parse_le_u32(buf: &[u8]) -> io::Result<u32>{
-    parse_le_u32_at(buf, 0)
-}
-fn parse_le_u32_at(buf: &[u8], index: usize) -> io::Result<u32>{
-    let bytes = buf.get(index..index+4)
-        .ok_or_else(||io::Error::new(ErrorKind::InvalidInput, "Buffer is not large enough to parse 4 bytes"))?;
-    Ok(u32::from_le_bytes(bytes.try_into().unwrap()))
-}
-
-fn parse_le_u64(buf: &[u8]) -> io::Result<u64>{
-    parse_le_u64_at(buf, 0)
-}
-fn parse_le_u64_at(buf: &[u8], index: usize) -> io::Result<u64>{
-    let bytes = buf.get(index..index+8)
-    .ok_or_else(||io::Error::new(ErrorKind::InvalidInput, "Buffer is not large enough to parse 8 bytes"))?;
-    Ok(u64::from_le_bytes(bytes.try_into().unwrap()))
-}
 
 fn field_sep_index(buf: &[u8]) -> io::Result<usize> {
     buf.iter().position(|&b| b == b'=')
@@ -95,7 +72,7 @@ fn field_sep_index(buf: &[u8]) -> io::Result<usize> {
 
 fn parse_field(buf: &[u8], i: usize) -> io::Result<(usize, &[u8], &[u8])>{
     let mut i = i;
-    let field_len = parse_le_u32_at(buf, i)? as usize;
+    let field_len = util::parsing::parse_le_u32_at(buf, i)? as usize;
     i += 4;
     let sep_pos = i + field_sep_index(&buf[i..i+field_len])?;
     
@@ -126,11 +103,11 @@ impl BagHeader {
             i = new_index;
 
             match name {
-                b"index_pos" => index_pos = Some(parse_le_u64(value)?),
-                b"conn_count" => conn_count = Some(parse_le_u32(value)?),
-                b"chunk_count" => chunk_count = Some(parse_le_u32(value)?),
+                b"index_pos" => index_pos = Some(util::parsing::parse_le_u64(value)?),
+                b"conn_count" => conn_count = Some(util::parsing::parse_le_u32(value)?),
+                b"chunk_count" => chunk_count = Some(util::parsing::parse_le_u32(value)?),
                 b"op" => {
-                    let op = parse_u8(value)?;
+                    let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::BagHeader as u8 {
                         return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected op {:?}, found {:?}", OpCode::BagHeader, op)))
                     }
@@ -182,9 +159,9 @@ impl ChunkHeader {
 
             match name {
                 b"compression" => compression = Some(String::from_utf8_lossy(value).to_string()),
-                b"size" => size = Some(parse_le_u32(value)?),
+                b"size" => size = Some(util::parsing::parse_le_u32(value)?),
                 b"op" => {
-                    let op = parse_u8(value)?;
+                    let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ChunkHeader as u8 {
                         return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected op {:?}, found {:?}", OpCode::ChunkHeader, op)))
                     }
@@ -231,13 +208,13 @@ impl ChunkInfoHeader {
             i = new_index;
             
             match name {
-                b"ver" => version =  Some(parse_le_u32(value)?),
-                b"chunk_pos" => chunk_pos = Some(parse_le_u64(value)?),
+                b"ver" => version =  Some(util::parsing::parse_le_u32(value)?),
+                b"chunk_pos" => chunk_pos = Some(util::parsing::parse_le_u64(value)?),
                 b"start_time" => start_time = Some(Time::from(value)?),
                 b"end_time" => end_time = Some(Time::from(value)?),
-                b"count" => connection_count = Some(parse_le_u32(value)?),
+                b"count" => connection_count = Some(util::parsing::parse_le_u32(value)?),
                 b"op" => {
-                    let op = parse_u8(value)?;
+                    let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ChunkInfoHeader as u8 {
                         return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected op {:?}, found {:?}", OpCode::ChunkInfoHeader, op)))
                     }
@@ -269,8 +246,8 @@ struct ChunkInfoData {
 impl ChunkInfoData {
     fn from(buf: &[u8]) -> io::Result<ChunkInfoData>{
         Ok(ChunkInfoData{
-            connection_id: parse_le_u32_at(buf, 0)?,
-            count: parse_le_u32_at(buf, 4)?
+            connection_id: util::parsing::parse_le_u32_at(buf, 0)?,
+            count: util::parsing::parse_le_u32_at(buf, 4)?
         })
     }
 }
@@ -294,9 +271,9 @@ impl ConnectionHeader{
             
             match name {
                 b"topic" => topic = Some(String::from_utf8_lossy(value).to_string()),
-                b"conn" => connection_id = Some(parse_le_u32(value)?),
+                b"conn" => connection_id = Some(util::parsing::parse_le_u32(value)?),
                 b"op" => {
-                    let op = parse_u8(value)?;
+                    let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ConnectionHeader as u8 {
                         return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected op {:?}, found {:?}", OpCode::ConnectionHeader, op)))
                     }
@@ -387,11 +364,11 @@ impl IndexDataHeader {
             i = new_index;
             
             match name {
-                b"ver" => version =  Some(parse_le_u32(value)?),
-                b"conn" => connection_id = Some(parse_le_u32(value)?),
-                b"count" => count = Some(parse_le_u32(value)?),
+                b"ver" => version =  Some(util::parsing::parse_le_u32(value)?),
+                b"conn" => connection_id = Some(util::parsing::parse_le_u32(value)?),
+                b"count" => count = Some(util::parsing::parse_le_u32(value)?),
                 b"op" => {
-                    let op = parse_u8(value)?;
+                    let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::IndexDataHeader as u8 {
                         return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected op {:?}, found {:?}", OpCode::IndexDataHeader, op)))
                     }
@@ -423,7 +400,7 @@ impl IndexData {
         Ok(IndexData{
             chunk_pos,
             time: Time::from(buf)?,
-            offset: parse_le_u32_at(buf, 8)? as usize
+            offset: util::parsing::parse_le_u32_at(buf, 8)? as usize
         })
     }
 }
@@ -448,8 +425,8 @@ impl MessageData {
             i = new_index;
             
             match name {
-                b"conn" => conn =  Some(parse_le_u32(value)?),
-                b"time" => time = Some(parse_le_u64(value)?),
+                b"conn" => conn =  Some(util::parsing::parse_le_u32(value)?),
+                b"time" => time = Some(util::parsing::parse_le_u64(value)?),
                 _ => return Err(io::Error::new(ErrorKind::InvalidData, format!("Unexpected field {} in MessageData", String::from_utf8_lossy(name))))
             }
         
@@ -649,7 +626,7 @@ fn read_header_op(buf: &[u8]) -> io::Result<OpCode>{
         i = new_index;
         
         if name == b"op" {
-            let op = parse_u8(value)?;
+            let op = util::parsing::parse_u8(value)?;
             return OpCode::from(op)
         }
         
