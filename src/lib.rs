@@ -3,34 +3,20 @@ use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 
 type ConnectionID = u32;
 
 mod util;
-
+use util::time;
 pub struct Bag {
     pub file_path: PathBuf,
+    pub version: String,
     chunk_metadata: Vec<ChunkMetadata>,
     connection_data: BTreeMap<ConnectionID, ConnectionData>,
     index_data: BTreeMap<ConnectionID, Vec<IndexData>> 
 }
 
-#[derive(Clone, Copy)]
-struct Time {
-    secs: u32,
-    nsecs: u32
-}
-
-impl Time {
-    fn new(secs: u32, nsecs: u32) -> Time {
-        Time { secs, nsecs }
-    }
-    fn from(buf: &[u8]) -> io::Result<Time> {
-        let secs = util::parsing::parse_le_u32(buf)?;
-        let nsecs = util::parsing::parse_le_u32_at(buf, 4)?;
-        Ok(Time { secs, nsecs })
-    }
-}
 
 #[derive(Debug)]
 #[repr(u8)]
@@ -135,8 +121,8 @@ struct ChunkMetadata {
     uncompressed_size: u32,
     compressed_size: u32,
     chunk_pos: u64,
-    start_time: Time,
-    end_time: Time,
+    start_time: time::Time,
+    end_time: time::Time,
     connection_count: u32,
     message_counts: BTreeMap<ConnectionID, u32>
 }
@@ -186,9 +172,9 @@ struct ChunkInfoHeader{
     version: u32,
     chunk_pos: u64,
     // timestamp of earliest message in the chunk
-    start_time: Time,
+    start_time: time::Time,
     // timestamp of latest message in the chunk
-    end_time: Time,
+    end_time: time::Time,
     // number of connections in the chunk 
     connection_count: u32,
 }
@@ -210,8 +196,8 @@ impl ChunkInfoHeader {
             match name {
                 b"ver" => version =  Some(util::parsing::parse_le_u32(value)?),
                 b"chunk_pos" => chunk_pos = Some(util::parsing::parse_le_u64(value)?),
-                b"start_time" => start_time = Some(Time::from(value)?),
-                b"end_time" => end_time = Some(Time::from(value)?),
+                b"start_time" => start_time = Some(time::Time::from(value)?),
+                b"end_time" => end_time = Some(time::Time::from(value)?),
                 b"count" => connection_count = Some(util::parsing::parse_le_u32(value)?),
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
@@ -391,7 +377,7 @@ impl IndexDataHeader {
 
 struct IndexData {
     chunk_pos: u64, // start position of the chunk in the file
-    time: Time,       // time at which the message was received 
+    time: time::Time,       // time at which the message was received 
     offset: usize,      // offset of message data record in uncompressed chunk data 
 }
 
@@ -399,7 +385,7 @@ impl IndexData {
     fn from(buf: &[u8], chunk_pos: u64) -> io::Result<IndexData>{
         Ok(IndexData{
             chunk_pos,
-            time: Time::from(buf)?,
+            time: time::Time::from(buf)?,
             offset: util::parsing::parse_le_u32_at(buf, 8)? as usize
         })
     }
@@ -449,24 +435,36 @@ impl Bag {
         
         let mut reader = BufReader::new(file);
         
-        Bag::version_check(&mut reader)?;
+        let version = Bag::version_check(&mut reader)?;
 
         let (chunk_metadata, connection_data, index_data) = Bag::parse_records(&mut reader)?;
 
         Ok(Bag {
+            version,
             file_path: path,
             chunk_metadata,
             connection_data,
             index_data,
         })
     }
+    pub fn start_time(&self) -> Option<time::Time> {
+        self.chunk_metadata.iter().map(|meta| meta.start_time).min()
+    }
+    pub fn end_time(&self) -> Option<time::Time> {
+        self.chunk_metadata.iter().map(|meta| meta.end_time).max()
+    }
+    pub fn duration(&self) -> Duration {
+        let start = self.start_time().unwrap_or(time::ZERO);
+        let end = self.end_time().unwrap_or(time::ZERO);
+        end.dur(start)
+    }
 
-    fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<()> {
+    fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<String> {
         let mut buf = [0u8; 13];
         let expected = b"#ROSBAG V2.0\n";
         reader.read_exact(&mut buf)?;
         if buf == *expected {
-            Ok(())
+            Ok("2.0".into())
         } else {
             Err(io::Error::new(ErrorKind::InvalidData, format!("Got unexpected rosbag version: {}", String::from_utf8_lossy(&buf))))
         }
@@ -504,12 +502,11 @@ impl Bag {
         ConnectionData::from(&data, connection_header.connection_id, connection_header.topic)
     }
 
-    fn parse_chunk<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(u64, u32, ChunkHeader)> {
+    fn parse_chunk<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(u32, ChunkHeader)> {
         let chunk_header = ChunkHeader::from(header_buf)?;
         let data_len = read_le_u32(reader)?;
-        let chunk_pos = reader.stream_position()?;
         reader.seek(io::SeekFrom::Current(data_len as i64))?; // skip reading the chunk
-        Ok((chunk_pos, data_len, chunk_header))
+        Ok((data_len, chunk_header))
     }
 
     fn parse_chunk_info<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(ChunkInfoHeader, Vec<ChunkInfoData>)> {
@@ -568,7 +565,8 @@ impl Bag {
                     bag_header = Some(Bag::parse_bag_header(&header_buf, reader)?);
                 }
                 OpCode::ChunkHeader => {
-                    let (chunk_pos, compressed_size, chunk_header) = Bag::parse_chunk(&header_buf, reader)?;
+                    let chunk_pos = reader.stream_position()? - header_buf.len() as u64 - 4; // substract header len bytes
+                    let (compressed_size, chunk_header) = Bag::parse_chunk(&header_buf, reader)?;
                     last_chunk_pos = Some(chunk_pos);
                     chunk_headers.push((chunk_pos, compressed_size, chunk_header));
                 }
@@ -597,6 +595,9 @@ impl Bag {
         if bag_header.conn_count as usize != connections.len() {
             return Err( io::Error::new(ErrorKind::InvalidData, format!("Expected {} Connections, found {}", bag_header.conn_count, connections.len())))
         }
+        
+        chunk_headers.iter().for_each(|ch| println!("Chunk header chunk pos: {:?}", ch.0));
+        chunk_infos.iter().for_each(|ci| println!("Chunk info chunk pos: {:?}", ci.0.chunk_pos));
 
         let chunk_metadata: Vec<ChunkMetadata> = chunk_headers.into_iter().flat_map(|(chunk_pos, compressed_size, chunk_header)|{
             chunk_infos.iter().find(|(chunk_info_header, _)| chunk_pos == chunk_info_header.chunk_pos)
