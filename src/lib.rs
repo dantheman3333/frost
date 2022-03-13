@@ -120,7 +120,8 @@ struct ChunkMetadata {
     compression: String,
     uncompressed_size: u32,
     compressed_size: u32,
-    chunk_pos: u64,
+    chunk_header_pos: u64,
+    chunk_data_pos: u64,
     start_time: time::Time,
     end_time: time::Time,
     connection_count: u32,
@@ -130,10 +131,13 @@ struct ChunkMetadata {
 struct ChunkHeader {
     compression: String,
     uncompressed_size: u32,
+    compressed_size: u32,
+    chunk_header_pos: u64,
+    chunk_data_pos: u64
 }
 
 impl ChunkHeader {
-    fn from(buf: &[u8]) -> io::Result<ChunkHeader>{
+    fn from(buf: &[u8], chunk_header_pos: u64, chunk_data_pos: u64, compressed_size: u32) -> io::Result<ChunkHeader>{
         let mut i = 0;
         
         let mut compression = None;
@@ -163,6 +167,9 @@ impl ChunkHeader {
         Ok(ChunkHeader{
             compression: compression.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'compression' in ChunkHeader"))?,
             uncompressed_size: size.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'size' in ChunkHeader"))?,
+            chunk_header_pos,
+            chunk_data_pos,
+            compressed_size
         })
     }
 }
@@ -170,7 +177,7 @@ impl ChunkHeader {
 
 struct ChunkInfoHeader{
     version: u32,
-    chunk_pos: u64,
+    chunk_header_pos: u64,
     // timestamp of earliest message in the chunk
     start_time: time::Time,
     // timestamp of latest message in the chunk
@@ -184,7 +191,7 @@ impl ChunkInfoHeader {
         let mut i = 0;
         
         let mut version = None;
-        let mut chunk_pos = None;
+        let mut chunk_header_pos = None;
         let mut start_time = None;
         let mut end_time = None;
         let mut connection_count = None;
@@ -195,7 +202,7 @@ impl ChunkInfoHeader {
             
             match name {
                 b"ver" => version =  Some(util::parsing::parse_le_u32(value)?),
-                b"chunk_pos" => chunk_pos = Some(util::parsing::parse_le_u64(value)?),
+                b"chunk_pos" => chunk_header_pos = Some(util::parsing::parse_le_u64(value)?),
                 b"start_time" => start_time = Some(time::Time::from(value)?),
                 b"end_time" => end_time = Some(time::Time::from(value)?),
                 b"count" => connection_count = Some(util::parsing::parse_le_u32(value)?),
@@ -215,7 +222,7 @@ impl ChunkInfoHeader {
 
         Ok(ChunkInfoHeader{
             version: version.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'ver' in ChunkInfoHeader"))?,
-            chunk_pos: chunk_pos.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'chunk_pos' in ChunkInfoHeader"))?,
+            chunk_header_pos: chunk_header_pos.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'chunk_header_pos' in ChunkInfoHeader"))?,
             start_time: start_time.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'start_time' in ChunkInfoHeader"))?,
             end_time: end_time.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'end_time' in ChunkInfoHeader"))?,
             connection_count: connection_count.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'count' in ChunkInfoHeader"))?,
@@ -376,15 +383,15 @@ impl IndexDataHeader {
 }
 
 struct IndexData {
-    chunk_pos: u64, // start position of the chunk in the file
+    chunk_header_pos: u64, // start position of the chunk in the file
     time: time::Time,       // time at which the message was received 
     offset: usize,      // offset of message data record in uncompressed chunk data 
 }
 
 impl IndexData {
-    fn from(buf: &[u8], chunk_pos: u64) -> io::Result<IndexData>{
+    fn from(buf: &[u8], chunk_header_pos: u64) -> io::Result<IndexData>{
         Ok(IndexData{
-            chunk_pos,
+            chunk_header_pos,
             time: time::Time::from(buf)?,
             offset: util::parsing::parse_le_u32_at(buf, 8)? as usize
         })
@@ -423,7 +430,7 @@ impl MessageData {
 
         Ok(MessageData{
             conn: conn.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'conn' in MessageData"))?,
-            time: time.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'chunk_pos' in MessageData"))?,
+            time: time.ok_or_else(||io::Error::new(ErrorKind::InvalidData, "Missing field 'chunk_header_pos' in MessageData"))?,
         })
     }
 }
@@ -456,7 +463,7 @@ impl Bag {
     pub fn duration(&self) -> Duration {
         let start = self.start_time().unwrap_or(time::ZERO);
         let end = self.end_time().unwrap_or(time::ZERO);
-        end.dur(start)
+        end.dur(&start)
     }
 
     fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<String> {
@@ -502,11 +509,14 @@ impl Bag {
         ConnectionData::from(&data, connection_header.connection_id, connection_header.topic)
     }
 
-    fn parse_chunk<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(u32, ChunkHeader)> {
-        let chunk_header = ChunkHeader::from(header_buf)?;
+    fn parse_chunk<R: Read + Seek>(header_buf: &[u8], reader: &mut R, chunk_header_pos: u64) -> io::Result<ChunkHeader> {
         let data_len = read_le_u32(reader)?;
+        let chunk_data_pos = reader.stream_position()?;
+
+        let chunk_header = ChunkHeader::from(header_buf, chunk_header_pos, chunk_data_pos, data_len)?;
+
         reader.seek(io::SeekFrom::Current(data_len as i64))?; // skip reading the chunk
-        Ok((data_len, chunk_header))
+        Ok(chunk_header)
     }
 
     fn parse_chunk_info<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> io::Result<(ChunkInfoHeader, Vec<ChunkInfoData>)> {
@@ -522,11 +532,11 @@ impl Bag {
         Ok((chunk_info_header, chunk_info_data))
     }
 
-    fn parse_index<R: Read + Seek>(header_buf: &[u8], reader: &mut R, chunk_pos: u64) -> io::Result<(ConnectionID, Vec<IndexData>)> {
+    fn parse_index<R: Read + Seek>(header_buf: &[u8], reader: &mut R, chunk_header_pos: u64) -> io::Result<(ConnectionID, Vec<IndexData>)> {
         let index_data_header = IndexDataHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?; 
         
-        let index_data: Vec<IndexData> = data.windows(12).step_by(12).flat_map(|buf| IndexData::from(buf, chunk_pos)).collect();
+        let index_data: Vec<IndexData> = data.windows(12).step_by(12).flat_map(|buf| IndexData::from(buf, chunk_header_pos)).collect();
 
         if index_data.len() != index_data_header.count as usize {
             return Err(io::Error::new(ErrorKind::InvalidData, format!("Expected {} IndexData, found {}", index_data_header.count, index_data.len())))
@@ -537,12 +547,12 @@ impl Bag {
 
     fn parse_records<R: Read + Seek>(reader: &mut R) -> io::Result<(Vec<ChunkMetadata>, BTreeMap<ConnectionID, ConnectionData>, BTreeMap<ConnectionID, Vec<IndexData>>)> {
         let mut bag_header: Option<BagHeader> = None;
-        let mut chunk_headers: Vec<(u64, u32, ChunkHeader)> = Vec::new();
+        let mut chunk_headers: Vec<ChunkHeader> = Vec::new();
         let mut chunk_infos: Vec<(ChunkInfoHeader, Vec<ChunkInfoData>)> = Vec::new();
         let mut connections: Vec<ConnectionData> = Vec::new();
         let mut index_data: BTreeMap<ConnectionID, Vec<IndexData>> = BTreeMap::new();
 
-        let mut last_chunk_pos = None;
+        let mut last_chunk_header_pos = None;
 
         loop {
             let maybe_header_len = read_le_u32(reader);
@@ -553,26 +563,26 @@ impl Bag {
                 }
             }
             let header_len = maybe_header_len.unwrap();
-    
+            
+            // TODO: benchmark and compare reading into a map or stack-local map crate
             let mut header_buf = vec![0u8; header_len as usize];
             reader.read_exact(&mut header_buf)?;
     
             let op = read_header_op(&header_buf)?;
-            // println!("Header is {:?}", op);
 
             match op {
                 OpCode::BagHeader => {
                     bag_header = Some(Bag::parse_bag_header(&header_buf, reader)?);
                 }
                 OpCode::ChunkHeader => {
-                    let chunk_pos = reader.stream_position()? - header_buf.len() as u64 - 4; // substract header len bytes
-                    let (compressed_size, chunk_header) = Bag::parse_chunk(&header_buf, reader)?;
-                    last_chunk_pos = Some(chunk_pos);
-                    chunk_headers.push((chunk_pos, compressed_size, chunk_header));
+                    let chunk_header_pos = reader.stream_position()? - header_buf.len() as u64 - 4; // substract header and header len
+                    let chunk_header = Bag::parse_chunk(&header_buf, reader, chunk_header_pos)?;
+                    last_chunk_header_pos = Some(chunk_header_pos);
+                    chunk_headers.push(chunk_header);
                 }
                 OpCode::IndexDataHeader => {
-                    let chunk_pos = last_chunk_pos.ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "Expected a Chunk before reading IndexData"))?;
-                    let (connection_id, mut data) = Bag::parse_index(&header_buf, reader, chunk_pos)?;
+                    let chunk_header_pos = last_chunk_header_pos.ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "Expected a Chunk before reading IndexData"))?;
+                    let (connection_id, mut data) = Bag::parse_index(&header_buf, reader, chunk_header_pos)?;
                     index_data.entry(connection_id).or_insert_with(Vec::new).append(&mut data);
                 }
                 OpCode::ConnectionHeader => {
@@ -595,18 +605,16 @@ impl Bag {
         if bag_header.conn_count as usize != connections.len() {
             return Err( io::Error::new(ErrorKind::InvalidData, format!("Expected {} Connections, found {}", bag_header.conn_count, connections.len())))
         }
-        
-        chunk_headers.iter().for_each(|ch| println!("Chunk header chunk pos: {:?}", ch.0));
-        chunk_infos.iter().for_each(|ci| println!("Chunk info chunk pos: {:?}", ci.0.chunk_pos));
 
-        let chunk_metadata: Vec<ChunkMetadata> = chunk_headers.into_iter().flat_map(|(chunk_pos, compressed_size, chunk_header)|{
-            chunk_infos.iter().find(|(chunk_info_header, _)| chunk_pos == chunk_info_header.chunk_pos)
+        let chunk_metadata: Vec<ChunkMetadata> = chunk_headers.into_iter().flat_map(|chunk_header|{
+            chunk_infos.iter().find(|(chunk_info_header, _)| chunk_header.chunk_header_pos == chunk_info_header.chunk_header_pos)
                               .map(|(chunk_info_header, chunk_data)| {
                 ChunkMetadata{
                     compression: chunk_header.compression,
                     uncompressed_size: chunk_header.uncompressed_size,
-                    compressed_size,
-                    chunk_pos,
+                    compressed_size: chunk_header.compressed_size,
+                    chunk_header_pos: chunk_header.chunk_header_pos,
+                    chunk_data_pos: chunk_header.chunk_data_pos,
                     start_time: chunk_info_header.start_time,
                     end_time: chunk_info_header.end_time,
                     connection_count: chunk_info_header.connection_count,
