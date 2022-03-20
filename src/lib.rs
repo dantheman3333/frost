@@ -13,7 +13,7 @@ pub struct Bag {
     pub file_path: PathBuf,
     pub version: String,
     chunk_metadata: Vec<ChunkMetadata>,
-    connection_data: BTreeMap<ConnectionID, ConnectionData>,
+    pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     index_data: BTreeMap<ConnectionID, Vec<IndexData>> 
 }
 
@@ -287,14 +287,14 @@ impl ConnectionHeader{
 }
 
 #[derive(Debug)]
-struct ConnectionData {
-    connection_id: u32, 
-    topic: String,
-    data_type: String,
-    md5sum: String,
-    message_definition: String,
-    caller_id: Option<String>,
-    latching: bool
+pub struct ConnectionData {
+    pub connection_id: u32, 
+    pub topic: String,
+    pub data_type: String,
+    pub md5sum: String,
+    pub message_definition: String,
+    pub caller_id: Option<String>,
+    pub latching: bool
 }
 
 impl ConnectionData {
@@ -382,6 +382,7 @@ impl IndexDataHeader {
     }
 }
 
+#[derive(Debug)]
 struct IndexData {
     chunk_header_pos: u64, // start position of the chunk in the file
     time: time::Time,       // time at which the message was received 
@@ -464,6 +465,9 @@ impl Bag {
         let start = self.start_time().unwrap_or(time::ZERO);
         let end = self.end_time().unwrap_or(time::ZERO);
         end.dur(&start)
+    }
+    pub fn message_count(&self) -> usize {
+        self.index_data.values().map(|v| v.len()).sum()
     }
 
     fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<String> {
@@ -583,6 +587,7 @@ impl Bag {
                 OpCode::IndexDataHeader => {
                     let chunk_header_pos = last_chunk_header_pos.ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "Expected a Chunk before reading IndexData"))?;
                     let (connection_id, mut data) = Bag::parse_index(&header_buf, reader, chunk_header_pos)?;
+                    println!("index data len {:?}", data.len());
                     index_data.entry(connection_id).or_insert_with(Vec::new).append(&mut data);
                 }
                 OpCode::ConnectionHeader => {
@@ -622,7 +627,6 @@ impl Bag {
                 }
             })
         }).collect();
-
         let connection_data: BTreeMap<ConnectionID, ConnectionData> = connections.into_iter().map(|data| (data.connection_id, data)).collect();
         Ok((chunk_metadata, connection_data, index_data))
     }
