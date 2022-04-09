@@ -232,7 +232,6 @@ impl ChunkInfoHeader {
 
 struct ChunkInfoData {
     connection_id: ConnectionID,
-    // number of messages that arrived on this connection in the chunk 
     count: u32,
 }
 
@@ -587,7 +586,6 @@ impl Bag {
                 OpCode::IndexDataHeader => {
                     let chunk_header_pos = last_chunk_header_pos.ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "Expected a Chunk before reading IndexData"))?;
                     let (connection_id, mut data) = Bag::parse_index(&header_buf, reader, chunk_header_pos)?;
-                    println!("index data len {:?}", data.len());
                     index_data.entry(connection_id).or_insert_with(Vec::new).append(&mut data);
                 }
                 OpCode::ConnectionHeader => {

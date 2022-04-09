@@ -23,8 +23,8 @@ fn main() -> io::Result<()> {
     println!("{0: <13}{1}", "path:", bag.file_path.to_string_lossy());
     println!("{0: <13}{1}", "version:", bag.version);
     println!("{0: <13}{1:.2}s", "duration:", bag.duration().as_secs());
-    println!("{0: <13}{1}", "start:", "TODO");
-    println!("{0: <13}{1}", "end:", "TODO");
+    println!("{0: <13}{1}", "start:", bag.start_time().unwrap());
+    println!("{0: <13}{1}", "end:", bag.end_time().unwrap());
     println!("{0: <13}{1}", "messages:", bag.message_count());
     println!("{0: <13}{1}", "compression:", "TODO");
 

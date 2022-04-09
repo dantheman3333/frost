@@ -1,10 +1,13 @@
 use std::{time::Duration, io};
+use std::fmt;
 
 use super::parsing;
 
 pub const MIN: Time =  Time { secs: 0, nsecs: 1 };
 pub const MAX: Time =  Time { secs: u32::MAX, nsecs: 999999999 };
 pub const ZERO: Time = Time { secs: 0, nsecs: 0};
+
+pub const NS_TO_S: f32 = 1e-9;
 
 #[derive(Clone, Copy, Debug, Eq)]
 pub struct Time {
@@ -21,6 +24,24 @@ impl From<Time> for Duration {
 impl From<&Time> for Duration {
     fn from(time: &Time) -> Self {
         Duration::from(*time)
+    }
+}
+
+impl From<Time> for f32 {
+    fn from(time: Time) -> Self {
+        time.secs as f32 + (time.nsecs as f32 * NS_TO_S)
+    }
+}
+
+impl From<&Time> for f32 {
+    fn from(time: &Time) -> Self {
+        f32::from(*time)
+    }
+}
+
+impl fmt::Display for Time {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", f32::from(self))
     }
 }
 

@@ -24,7 +24,7 @@ def main():
 
     try:
         for i in range(count):
-            t = rospy.Time(secs=i)
+            t = rospy.Time(secs=i, nsecs=1000 + i*1000)
 
             s_msg = String()
             s_msg.data = 'foo_{}'.format(i)
