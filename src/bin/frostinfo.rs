@@ -10,8 +10,12 @@ struct Args {
     file_path: String,
 }
 
-fn max_data_type_len(bag: &Bag) -> usize {
+fn max_type_len(bag: &Bag) -> usize {
     bag.connection_data.values().map(|d| d.data_type.len()).max().unwrap_or(0)
+}
+
+fn max_topic_len(bag: &Bag) -> usize {
+    bag.connection_data.values().map(|d| d.topic.len()).max().unwrap_or(0)
 }
 
 fn main() -> io::Result<()> {
@@ -28,10 +32,17 @@ fn main() -> io::Result<()> {
     println!("{0: <13}{1}", "messages:", bag.message_count());
     println!("{0: <13}{1}", "compression:", "TODO");
 
-    let max_type_len = max_data_type_len(&bag);
+    let max_type_len = max_type_len(&bag);
     for (i, connection_data) in bag.connection_data.values().enumerate(){
         let col_display = if i == 0 {"types:"} else {""};
         println!("{0: <13}{1: <max_type_len$} [{2}]", col_display, connection_data.data_type, connection_data.md5sum);
+    }
+
+    let max_topic_len = max_topic_len(&bag);
+    for (i, connection_data) in bag.connection_data.values().enumerate(){
+        let col_display = if i == 0 {"topics:"} else {""};
+        let msg_count = bag.index_data.get(&connection_data.connection_id).map_or_else(|| 0, |data| data.len());
+        println!("{0: <13}{1: <max_topic_len$} {2:>10} msgs : {3}", col_display, connection_data.topic, msg_count, connection_data.data_type);
     }
 
     Ok(())

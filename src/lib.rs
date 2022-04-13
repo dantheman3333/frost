@@ -14,7 +14,7 @@ pub struct Bag {
     pub version: String,
     chunk_metadata: Vec<ChunkMetadata>,
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
-    index_data: BTreeMap<ConnectionID, Vec<IndexData>> 
+    pub index_data: BTreeMap<ConnectionID, Vec<IndexData>> 
 }
 
 
@@ -382,7 +382,7 @@ impl IndexDataHeader {
 }
 
 #[derive(Debug)]
-struct IndexData {
+pub struct IndexData {
     chunk_header_pos: u64, // start position of the chunk in the file
     time: time::Time,       // time at which the message was received 
     offset: usize,      // offset of message data record in uncompressed chunk data 
