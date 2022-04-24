@@ -1,18 +1,21 @@
-use std::{time::Duration, io};
 use std::fmt;
+use std::{io, time::Duration};
 
 use super::parsing;
 
-pub const MIN: Time =  Time { secs: 0, nsecs: 1 };
-pub const MAX: Time =  Time { secs: u32::MAX, nsecs: 999999999 };
-pub const ZERO: Time = Time { secs: 0, nsecs: 0};
+pub const MIN: Time = Time { secs: 0, nsecs: 1 };
+pub const MAX: Time = Time {
+    secs: u32::MAX,
+    nsecs: 999999999,
+};
+pub const ZERO: Time = Time { secs: 0, nsecs: 0 };
 
 pub const NS_TO_S: f32 = 1e-9;
 
 #[derive(Clone, Copy, Debug, Eq)]
 pub struct Time {
     secs: u32,
-    nsecs: u32
+    nsecs: u32,
 }
 
 impl From<Time> for Duration {
@@ -54,7 +57,7 @@ impl Time {
         let nsecs = parsing::parse_le_u32_at(buf, 4)?;
         Ok(Time { secs, nsecs })
     }
-    pub fn dur(&self, other: &Time) -> Duration{
+    pub fn dur(&self, other: &Time) -> Duration {
         Duration::from(self) - Duration::from(other)
     }
 }
