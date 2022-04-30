@@ -78,7 +78,7 @@ fn print_all(bag: &Bag) {
 }
 
 fn main() -> io::Result<()> {
-    let args = Info::default().for_parser(make_parser()).run();
+    let args = Info::default().descr("An info utility for rosbags").for_parser(make_parser()).run();
 
     let bag = Bag::from(args.file_path)?;
 
