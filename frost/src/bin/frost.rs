@@ -13,6 +13,7 @@ struct Options {
 }
 
 fn make_parser() -> Parser<Options> {
+    //let cmd = command(name, help, subparser)
     let only_topics = short('t').long("topics").help("Only print topics").switch();
     let file_path = positional_os("FILE").map(PathBuf::from);
     construct!(Options {
@@ -78,7 +79,10 @@ fn print_all(bag: &Bag) {
 }
 
 fn main() -> io::Result<()> {
-    let args = Info::default().descr("An info utility for rosbags").for_parser(make_parser()).run();
+    let args = Info::default()
+        .descr("An info utility for rosbags")
+        .for_parser(make_parser())
+        .run();
 
     let bag = Bag::from(args.file_path)?;
 
