@@ -7,19 +7,28 @@ use frost::Bag;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-struct Options {
+struct InfoOptions {
     only_topics: bool,
     file_path: PathBuf,
 }
 
-fn make_parser() -> Parser<Options> {
-    //let cmd = command(name, help, subparser)
+#[derive(Clone, Debug)]
+enum Command {
+    Info(InfoOptions),
+}
+
+fn make_parser() -> Parser<Command> {
     let only_topics = short('t').long("topics").help("Only print topics").switch();
     let file_path = positional_os("FILE").map(PathBuf::from);
-    construct!(Options {
+    let info_parser = construct!(InfoOptions {
         only_topics,
         file_path
-    })
+    });
+    let info_options: OptionParser<InfoOptions> = Info::default()
+        .descr("Options for frost info")
+        .for_parser(info_parser);
+
+    command("info", Some("rosbag information"), info_options).map(Command::Info)
 }
 
 fn max_type_len(bag: &Bag) -> usize {
@@ -84,12 +93,16 @@ fn main() -> io::Result<()> {
         .for_parser(make_parser())
         .run();
 
-    let bag = Bag::from(args.file_path)?;
+    match args {
+        Command::Info(info_args) => {
+            let bag = Bag::from(info_args.file_path)?;
 
-    if args.only_topics {
-        print_topics(&bag);
-    } else {
-        print_all(&bag);
+            if info_args.only_topics {
+                print_topics(&bag);
+            } else {
+                print_all(&bag);
+            }
+        }
     }
 
     Ok(())
