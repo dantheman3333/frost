@@ -1,0 +1,18 @@
+[package]
+name = "frost"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "frost"
+path = "src/lib.rs"
+
+[[bin]]
+name = "frost"
+path = "src/bin/frost.rs"
+
+[dev-dependencies]
+tempfile = "3"
+
+[dependencies]
+bpaf = "0.4.3"
