@@ -5,7 +5,6 @@ use bpaf::*;
 
 use frost::Bag;
 
-#[allow(dead_code)]
 #[derive(Debug, Clone)]
 struct InfoOptions {
     only_topics: bool,
