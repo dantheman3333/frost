@@ -3,12 +3,8 @@ import os
 
 import rosbag
 import rospy
-from std_msgs.msg import Int32, String
+from std_msgs.msg import Float64MultiArray, MultiArrayDimension, MultiArrayLayout, String
 
-bag_path = './tests/fixtures/test.bag'
-LARGE_FIXTURE_PATH = './tests/fixtures/test_large.bag'
-SMALL_NUM_WRITE = 100000
-SMALL_NUM_WRITE = 1000
 
 def main():
     parser = argparse.ArgumentParser("Generate a bag")
@@ -29,11 +25,14 @@ def main():
             s_msg = String()
             s_msg.data = 'foo_{}'.format(i)
 
-            i_msg = Int32()
-            i_msg.data = i
+            array_msg = Float64MultiArray()
+            array_msg.layout = MultiArrayLayout()
+            array_msg.layout.data_offset = 0
+            array_msg.layout.dim = [MultiArrayDimension('data',3,3)]
+            array_msg.data = [0.0] * 3
 
             bag.write('/chatter', s_msg, t=t)
-            bag.write('/numbers', i_msg, t=t)
+            bag.write('/array', array_msg, t=t)
     finally:
         bag.close()
     
