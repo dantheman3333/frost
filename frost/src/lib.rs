@@ -8,13 +8,16 @@ use std::time::Duration;
 type ConnectionID = u32;
 
 mod util;
-use util::time;
+use util::{time};
+use util::query::Query;
+mod std_msgs;
 pub struct Bag {
     pub file_path: PathBuf,
     pub version: String,
     chunk_metadata: Vec<ChunkMetadata>,
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
+    topic_to_ids: BTreeMap<String, Vec<ConnectionID>>,
 }
 
 #[derive(Debug)]
@@ -616,7 +619,10 @@ impl MessageData {
 }
 
 impl Bag {
-    pub fn from<P: Into<PathBuf> + AsRef<Path>>(file_path: P) -> io::Result<Bag> {
+    pub fn from<P>(file_path: P) -> io::Result<Bag>
+    where
+        P: AsRef<Path> + Into<PathBuf>,
+    {
         let path: PathBuf = file_path.as_ref().into();
         let file = File::open(file_path)?;
 
@@ -626,28 +632,48 @@ impl Bag {
 
         let (chunk_metadata, connection_data, index_data) = Bag::parse_records(&mut reader)?;
 
+        let topic_to_ids: BTreeMap<String, Vec<ConnectionID>> =
+            connection_data
+                .values()
+                .fold(BTreeMap::new(), |mut acc, data| {
+                    acc.entry(data.topic.clone())
+                        .or_insert(Vec::new())
+                        .push(data.connection_id);
+                    acc
+                });
+
         Ok(Bag {
             version,
             file_path: path,
             chunk_metadata,
             connection_data,
             index_data,
+            topic_to_ids,
         })
     }
+
+    pub fn read_messages(&self, query: Query){
+        
+    }
+
     pub fn start_time(&self) -> Option<time::Time> {
         self.chunk_metadata.iter().map(|meta| meta.start_time).min()
     }
+
     pub fn end_time(&self) -> Option<time::Time> {
         self.chunk_metadata.iter().map(|meta| meta.end_time).max()
     }
+
     pub fn duration(&self) -> Duration {
         let start = self.start_time().unwrap_or(time::ZERO);
         let end = self.end_time().unwrap_or(time::ZERO);
         end.dur(&start)
     }
+
     pub fn message_count(&self) -> usize {
         self.index_data.values().map(|v| v.len()).sum()
     }
+
     pub fn topics(&self) -> Vec<&String> {
         self.connection_data
             .values()
