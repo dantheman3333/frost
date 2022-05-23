@@ -6,18 +6,21 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 type ConnectionID = u32;
+type ChunkHeaderLoc = u64;
 
 mod util;
-use util::{time};
-use util::query::Query;
+use util::query::{BagIter, Query};
+use util::time;
 mod std_msgs;
+
 pub struct Bag {
     pub file_path: PathBuf,
     pub version: String,
-    chunk_metadata: Vec<ChunkMetadata>,
-    pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
-    pub index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
-    topic_to_ids: BTreeMap<String, Vec<ConnectionID>>,
+    chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
+    chunk_bytes: BTreeMap<ChunkHeaderLoc, Box<[u8]>>,
+    pub(crate) connection_data: BTreeMap<ConnectionID, ConnectionData>,
+    pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
+    topic_to_connection_ids: BTreeMap<String, Vec<ConnectionID>>,
 }
 
 #[derive(Debug)]
@@ -148,6 +151,7 @@ impl BagHeader {
 }
 
 /// Struct to store everything about a Chunk
+///
 /// As ChunkHeader and ChunkInfoHeaders are separate, after parsing all records, combine that info into a Chunk
 struct ChunkMetadata {
     compression: String,
@@ -401,6 +405,7 @@ impl ConnectionHeader {
 }
 
 #[derive(Debug)]
+///Store metadata for connections, including topic, conn id, md5, etc.
 pub struct ConnectionData {
     pub connection_id: u32,
     pub topic: String,
@@ -548,10 +553,14 @@ impl IndexDataHeader {
 }
 
 #[derive(Debug)]
-pub struct IndexData {
-    chunk_header_pos: u64, // start position of the chunk in the file
-    time: time::Time,      // time at which the message was received
-    offset: usize,         // offset of message data record in uncompressed chunk data
+///Stores data about messages and where they are in the bag
+pub(crate) struct IndexData {
+    ///start position of the chunk in the file
+    chunk_header_pos: ChunkHeaderLoc,
+    ///time at which the message was received
+    time: time::Time,
+    ///offset of message data record in uncompressed chunk data   
+    offset: usize,
 }
 
 impl IndexData {
@@ -565,9 +574,9 @@ impl IndexData {
 }
 
 struct MessageData {
-    // ID for connection on which message arrived
-    conn: u32,
-    // time at which the message was received
+    ///ID for connection on which message arrived
+    conn: ConnectionID,
+    ///Time at which the message was received
     time: u64,
 }
 
@@ -623,7 +632,7 @@ impl Bag {
     where
         P: AsRef<Path> + Into<PathBuf>,
     {
-        let path: PathBuf = file_path.as_ref().into();
+        let path = file_path.as_ref().into();
         let file = File::open(file_path)?;
 
         let mut reader = BufReader::new(file);
@@ -646,22 +655,26 @@ impl Bag {
             version,
             file_path: path,
             chunk_metadata,
+            chunk_bytes: BTreeMap::new(),
             connection_data,
             index_data,
-            topic_to_ids,
+            topic_to_connection_ids: topic_to_ids,
         })
     }
 
-    pub fn read_messages(&self, query: Query){
-        
+    pub fn read_messages(&self, query: &Query) -> BagIter {
+        BagIter::new(self, query)
     }
 
     pub fn start_time(&self) -> Option<time::Time> {
-        self.chunk_metadata.iter().map(|meta| meta.start_time).min()
+        self.chunk_metadata
+            .values()
+            .map(|meta| meta.start_time)
+            .min()
     }
 
     pub fn end_time(&self) -> Option<time::Time> {
-        self.chunk_metadata.iter().map(|meta| meta.end_time).max()
+        self.chunk_metadata.values().map(|meta| meta.end_time).max()
     }
 
     pub fn duration(&self) -> Duration {
@@ -675,11 +688,13 @@ impl Bag {
     }
 
     pub fn topics(&self) -> Vec<&String> {
-        self.connection_data
-            .values()
-            .map(|data| &data.topic)
-            .collect()
+        self.topic_to_connection_ids.keys().collect()
     }
+
+    ///Reads a chunk from disc
+    ///
+    /// Does not do anything if a chunk has already been read
+    pub(crate) fn populate_chunk(&mut self) {}
 
     fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<String> {
         let mut buf = [0u8; 13];
@@ -813,7 +828,7 @@ impl Bag {
     fn parse_records<R: Read + Seek>(
         reader: &mut R,
     ) -> io::Result<(
-        Vec<ChunkMetadata>,
+        BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
         BTreeMap<ConnectionID, ConnectionData>,
         BTreeMap<ConnectionID, Vec<IndexData>>,
     )> {
@@ -913,7 +928,7 @@ impl Bag {
             ));
         }
 
-        let chunk_metadata: Vec<ChunkMetadata> = chunk_headers
+        let chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata> = chunk_headers
             .into_iter()
             .flat_map(|chunk_header| {
                 chunk_infos
@@ -936,6 +951,7 @@ impl Bag {
                             .collect::<BTreeMap<ConnectionID, u32>>(),
                     })
             })
+            .map(|metadata| (metadata.chunk_header_pos, metadata))
             .collect();
         let connection_data: BTreeMap<ConnectionID, ConnectionData> = connections
             .into_iter()
@@ -976,7 +992,7 @@ mod tests {
 
     use tempfile::{tempdir, TempDir};
 
-    use crate::{field_sep_index, Bag};
+    use crate::{field_sep_index, util::query::Query, Bag};
 
     fn write_test_fixture() -> (TempDir, PathBuf) {
         let bytes = include_bytes!("../tests/fixtures/test.bag");
@@ -1001,6 +1017,16 @@ mod tests {
     fn bag_from() {
         let (_tmp_dir, file_path) = write_test_fixture();
         Bag::from(file_path).unwrap();
+    }
+
+    #[test]
+    fn bag_iter() {
+        let (_tmp_dir, file_path) = write_test_fixture();
+        let bag = Bag::from(file_path).unwrap();
+        let query = Query::all();
+        for msg in bag.read_messages(&query) {
+            dbg!(msg);
+        }
     }
 
     #[test]

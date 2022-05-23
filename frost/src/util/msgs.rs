@@ -1,4 +1,2 @@
-
-
-trait Message {}
-
+#[derive(Debug)]
+pub struct MessageView {}
