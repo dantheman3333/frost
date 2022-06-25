@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
-use crate::{Bag, ConnectionID, IndexData};
+use crate::{std_msgs::std_msgs::Time, Bag, ConnectionID, IndexData};
 
-use super::{msgs::MessageView, time::Time};
+use super::{msgs::MessageView, parsing::parse_le_u32_at};
 
 pub struct Query {
     topics: Option<Vec<String>>,
@@ -40,15 +40,23 @@ impl Query {
         self.end_time = Some(end_time);
         self
     }
+
+    pub fn build(&self) -> Self {
+        Query {
+            topics: self.topics.clone(),
+            start_time: self.start_time,
+            end_time: self.end_time,
+        }
+    }
 }
 
 pub struct BagIter<'a> {
-    bag: &'a Bag,
-    index_data: Vec<&'a IndexData>,
+    bag: &'a mut Bag,
+    index_data: Vec<IndexData>,
     current_pos: usize,
 }
 impl<'a> BagIter<'a> {
-    pub(crate) fn new(bag: &'a Bag, query: &Query) -> Self {
+    pub(crate) fn new(bag: &'a mut Bag, query: &Query) -> Self {
         let ids: HashSet<ConnectionID> = match &query.topics {
             Some(topics) => topics
                 .iter()
@@ -63,9 +71,9 @@ impl<'a> BagIter<'a> {
                 .collect(),
         };
 
-        let mut index_data: Vec<&IndexData> = ids
+        let mut index_data: Vec<IndexData> = ids
             .iter()
-            .map(|id| bag.index_data.get(id).unwrap())
+            .map(|id| bag.index_data.get(id).unwrap().clone())
             .flatten()
             .filter(|data| {
                 if let Some(start_time) = query.start_time {
@@ -88,14 +96,23 @@ impl<'a> BagIter<'a> {
             current_pos: 0,
         }
     }
-    fn get_index_data(&mut self) -> Vec<&'a IndexData> {
-        todo!()
-    }
 }
+
 impl<'a> Iterator for BagIter<'a> {
     type Item = MessageView;
 
     fn next(&mut self) -> Option<Self::Item> {
-        todo!()
+        if self.current_pos >= self.index_data.len() {
+            None
+        } else {
+            let data = self.index_data.get(self.current_pos).unwrap().clone();
+            dbg!(data.clone());
+            let chunk_bytes = self.bag.get_chunk_bytes(data.chunk_header_pos);
+            let msg_size = parse_le_u32_at(&chunk_bytes, data.offset).unwrap();
+            self.current_pos += 1;
+            Some(MessageView {
+                bytes: chunk_bytes[data.offset..data.offset + msg_size as usize].to_vec(),
+            })
+        }
     }
 }

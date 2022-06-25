@@ -9,6 +9,7 @@ type ConnectionID = u32;
 type ChunkHeaderLoc = u64;
 
 mod util;
+use std_msgs::std_msgs::Time;
 use util::query::{BagIter, Query};
 use util::time;
 mod std_msgs;
@@ -17,8 +18,8 @@ pub struct Bag {
     pub file_path: PathBuf,
     pub version: String,
     chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
-    chunk_bytes: BTreeMap<ChunkHeaderLoc, Box<[u8]>>,
-    pub(crate) connection_data: BTreeMap<ConnectionID, ConnectionData>,
+    chunk_bytes: BTreeMap<ChunkHeaderLoc, Vec<u8>>,
+    pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
     topic_to_connection_ids: BTreeMap<String, Vec<ConnectionID>>,
 }
@@ -159,8 +160,8 @@ struct ChunkMetadata {
     compressed_size: u32,
     chunk_header_pos: u64,
     chunk_data_pos: u64,
-    start_time: time::Time,
-    end_time: time::Time,
+    start_time: Time,
+    end_time: Time,
     connection_count: u32,
     message_counts: BTreeMap<ConnectionID, u32>,
 }
@@ -241,9 +242,9 @@ struct ChunkInfoHeader {
     version: u32,
     chunk_header_pos: u64,
     // timestamp of earliest message in the chunk
-    start_time: time::Time,
+    start_time: Time,
     // timestamp of latest message in the chunk
-    end_time: time::Time,
+    end_time: Time,
     // number of connections in the chunk
     connection_count: u32,
 }
@@ -265,8 +266,8 @@ impl ChunkInfoHeader {
             match name {
                 b"ver" => version = Some(util::parsing::parse_le_u32(value)?),
                 b"chunk_pos" => chunk_header_pos = Some(util::parsing::parse_le_u64(value)?),
-                b"start_time" => start_time = Some(time::Time::from(value)?),
-                b"end_time" => end_time = Some(time::Time::from(value)?),
+                b"start_time" => start_time = Some(Time::from(value)?),
+                b"end_time" => end_time = Some(Time::from(value)?),
                 b"count" => connection_count = Some(util::parsing::parse_le_u32(value)?),
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
@@ -552,13 +553,13 @@ impl IndexDataHeader {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 ///Stores data about messages and where they are in the bag
 pub(crate) struct IndexData {
     ///start position of the chunk in the file
     chunk_header_pos: ChunkHeaderLoc,
     ///time at which the message was received
-    time: time::Time,
+    time: Time,
     ///offset of message data record in uncompressed chunk data   
     offset: usize,
 }
@@ -567,7 +568,7 @@ impl IndexData {
     fn from(buf: &[u8], chunk_header_pos: u64) -> io::Result<IndexData> {
         Ok(IndexData {
             chunk_header_pos,
-            time: time::Time::from(buf)?,
+            time: Time::from(buf)?,
             offset: util::parsing::parse_le_u32_at(buf, 8)? as usize,
         })
     }
@@ -662,18 +663,18 @@ impl Bag {
         })
     }
 
-    pub fn read_messages(&self, query: &Query) -> BagIter {
+    pub fn read_messages(&mut self, query: &Query) -> BagIter {
         BagIter::new(self, query)
     }
 
-    pub fn start_time(&self) -> Option<time::Time> {
+    pub fn start_time(&self) -> Option<Time> {
         self.chunk_metadata
             .values()
             .map(|meta| meta.start_time)
             .min()
     }
 
-    pub fn end_time(&self) -> Option<time::Time> {
+    pub fn end_time(&self) -> Option<Time> {
         self.chunk_metadata.values().map(|meta| meta.end_time).max()
     }
 
@@ -687,14 +688,55 @@ impl Bag {
         self.index_data.values().map(|v| v.len()).sum()
     }
 
+    pub fn topic_message_count(&self, topic: &str) -> Option<usize> {
+        match self.topic_to_connection_ids.get(topic) {
+            Some(conn_ids) => Some(
+                conn_ids
+                    .iter()
+                    .map(|id| self.index_data.get(id).map_or_else(|| 0, |data| data.len()))
+                    .sum(),
+            ),
+            None => None,
+        }
+    }
+
     pub fn topics(&self) -> Vec<&String> {
         self.topic_to_connection_ids.keys().collect()
     }
 
+    pub fn topics_and_types(&self) -> Vec<(&String, &String)> {
+        self.connection_data
+            .values()
+            .map(|data| (&data.topic, &data.data_type))
+            .collect()
+    }
+
+    fn populate_chunk_bytes(&mut self, chunk_loc: ChunkHeaderLoc) {
+        let file = File::open(&self.file_path).unwrap();
+        let mut reader = BufReader::new(file);
+        let metadata = self
+            .chunk_metadata
+            .get(&chunk_loc)
+            .expect(format!("Tried to get a chunk that doesn't exist {}", chunk_loc).as_ref());
+
+        let mut buf = vec![0u8; metadata.uncompressed_size as usize];
+        reader
+            .seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))
+            .expect(format!("Failed to seek to {}", metadata.chunk_data_pos).as_ref());
+        reader
+            .read_exact(&mut buf[..])
+            .expect(format!("Failed to read chunk {} num bytes {}", chunk_loc, buf.len()).as_ref());
+        self.chunk_bytes.insert(chunk_loc, buf);
+    }
     ///Reads a chunk from disc
     ///
-    /// Does not do anything if a chunk has already been read
-    pub(crate) fn populate_chunk(&mut self) {}
+    ///Does not do anything if a chunk has already been read
+    pub(crate) fn get_chunk_bytes<'a>(&'a mut self, chunk_loc: ChunkHeaderLoc) -> Vec<u8> {
+        if !self.chunk_bytes.contains_key(&chunk_loc) {
+            self.populate_chunk_bytes(chunk_loc);
+        }
+        self.chunk_bytes.get(&chunk_loc).unwrap().clone()
+    }
 
     fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<String> {
         let mut buf = [0u8; 13];
@@ -1022,11 +1064,17 @@ mod tests {
     #[test]
     fn bag_iter() {
         let (_tmp_dir, file_path) = write_test_fixture();
-        let bag = Bag::from(file_path).unwrap();
+        let mut bag = Bag::from(file_path).unwrap();
+
         let query = Query::all();
-        for msg in bag.read_messages(&query) {
-            dbg!(msg);
-        }
+        let count = bag.read_messages(&query).count();
+        assert_eq!(count, 2000);
+
+        let query = Query::new()
+            .with_topics(&vec!["/chatter".to_owned()])
+            .build();
+        let count = bag.read_messages(&query).count();
+        assert_eq!(count, 1000);
     }
 
     #[test]
