@@ -1,6 +1,9 @@
 use std::collections::HashSet;
 
-use crate::{std_msgs::std_msgs::Time, Bag, ConnectionID, IndexData};
+use crate::{
+    read_header_op, std_msgs::std_msgs::Time, Bag, ConnectionID, IndexData, MessageDataHeader,
+    OpCode,
+};
 
 use super::{msgs::MessageView, parsing::parse_le_u32_at};
 
@@ -53,7 +56,7 @@ impl Query {
 pub struct BagIter<'a> {
     bag: &'a mut Bag,
     index_data: Vec<IndexData>,
-    current_pos: usize,
+    current_index: usize,
 }
 impl<'a> BagIter<'a> {
     pub(crate) fn new(bag: &'a mut Bag, query: &Query) -> Self {
@@ -93,7 +96,7 @@ impl<'a> BagIter<'a> {
         BagIter {
             bag,
             index_data,
-            current_pos: 0,
+            current_index: 0,
         }
     }
 }
@@ -102,16 +105,39 @@ impl<'a> Iterator for BagIter<'a> {
     type Item = MessageView;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.current_pos >= self.index_data.len() {
+        if self.current_index >= self.index_data.len() {
             None
         } else {
-            let data = self.index_data.get(self.current_pos).unwrap().clone();
-            dbg!(data.clone());
+            let data = self.index_data.get(self.current_index).unwrap().clone();
             let chunk_bytes = self.bag.get_chunk_bytes(data.chunk_header_pos);
-            let msg_size = parse_le_u32_at(&chunk_bytes, data.offset).unwrap();
-            self.current_pos += 1;
+
+            let mut pos = data.offset;
+
+            let header_len = parse_le_u32_at(&chunk_bytes, pos).unwrap() as usize;
+            pos += 4;
+            let header_start = pos;
+            let header_end = header_start + header_len;
+
+            MessageDataHeader::from(&chunk_bytes[header_start..header_end])
+                .expect("Failed to read MessageDataHeader");
+            pos = header_end;
+
+            let data_len = parse_le_u32_at(&chunk_bytes, pos).unwrap() as usize;
+            // serde_rosmsg wants the data_len included, so don't pos += 4;
+            let data_start = pos;
+            let data_end = data_start + data_len + 4; // add extra 4 for data_len
+
+            self.current_index += 1;
+
             Some(MessageView {
-                bytes: chunk_bytes[data.offset..data.offset + msg_size as usize].to_vec(),
+                topic: self
+                    .bag
+                    .connection_data
+                    .get(&data.conn_id)
+                    .unwrap()
+                    .topic
+                    .clone(),
+                bytes: chunk_bytes[data_start..data_end].to_vec(),
             })
         }
     }

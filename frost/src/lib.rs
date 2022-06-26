@@ -556,6 +556,7 @@ impl IndexDataHeader {
 #[derive(Debug, Clone)]
 ///Stores data about messages and where they are in the bag
 pub(crate) struct IndexData {
+    conn_id: ConnectionID,
     ///start position of the chunk in the file
     chunk_header_pos: ChunkHeaderLoc,
     ///time at which the message was received
@@ -565,24 +566,26 @@ pub(crate) struct IndexData {
 }
 
 impl IndexData {
-    fn from(buf: &[u8], chunk_header_pos: u64) -> io::Result<IndexData> {
+    fn from(buf: &[u8], chunk_header_pos: u64, conn_id: ConnectionID) -> io::Result<IndexData> {
         Ok(IndexData {
             chunk_header_pos,
             time: Time::from(buf)?,
             offset: util::parsing::parse_le_u32_at(buf, 8)? as usize,
+            conn_id,
         })
     }
 }
 
-struct MessageData {
+#[derive(Debug)]
+struct MessageDataHeader {
     ///ID for connection on which message arrived
     conn: ConnectionID,
     ///Time at which the message was received
-    time: u64,
+    time: Time,
 }
 
-impl MessageData {
-    fn from(buf: &[u8]) -> io::Result<MessageData> {
+impl MessageDataHeader {
+    fn from(buf: &[u8]) -> io::Result<MessageDataHeader> {
         let mut i = 0;
 
         let mut conn = None;
@@ -594,7 +597,16 @@ impl MessageData {
 
             match name {
                 b"conn" => conn = Some(util::parsing::parse_le_u32(value)?),
-                b"time" => time = Some(util::parsing::parse_le_u64(value)?),
+                b"time" => time = Some(Time::from(value)?),
+                b"op" => {
+                    let op = util::parsing::parse_u8(value)?;
+                    if op != OpCode::MessageData as u8 {
+                        return Err(io::Error::new(
+                            ErrorKind::InvalidData,
+                            format!("Expected op {:?}, found {:?}", OpCode::MessageData, op),
+                        ));
+                    }
+                }
                 _ => {
                     return Err(io::Error::new(
                         ErrorKind::InvalidData,
@@ -611,7 +623,7 @@ impl MessageData {
             }
         }
 
-        Ok(MessageData {
+        Ok(MessageDataHeader {
             conn: conn.ok_or_else(|| {
                 io::Error::new(
                     ErrorKind::InvalidData,
@@ -850,7 +862,7 @@ impl Bag {
         let index_data: Vec<IndexData> = data
             .windows(12)
             .step_by(12)
-            .flat_map(|buf| IndexData::from(buf, chunk_header_pos))
+            .flat_map(|buf| IndexData::from(buf, chunk_header_pos, index_data_header.connection_id))
             .collect();
 
         if index_data.len() != index_data_header.count as usize {
@@ -1027,6 +1039,7 @@ fn read_header_op(buf: &[u8]) -> io::Result<OpCode> {
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::HashMap,
         fs::File,
         io::{BufReader, Write},
         path::PathBuf,
@@ -1034,7 +1047,12 @@ mod tests {
 
     use tempfile::{tempdir, TempDir};
 
-    use crate::{field_sep_index, util::query::Query, Bag};
+    use crate::{
+        field_sep_index,
+        std_msgs::std_msgs::{Float64MultiArray, StdString},
+        util::{msgs::Msg, query::Query},
+        Bag,
+    };
 
     fn write_test_fixture() -> (TempDir, PathBuf) {
         let bytes = include_bytes!("../tests/fixtures/test.bag");
@@ -1070,9 +1088,36 @@ mod tests {
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 2000);
 
-        let query = Query::new()
-            .with_topics(&vec!["/chatter".to_owned()])
-            .build();
+        let query = Query::new().with_topics(&vec!["/chatter"]).build();
+        let count = bag.read_messages(&query).count();
+        assert_eq!(count, 1000);
+    }
+
+    #[test]
+    fn msg_reading() {
+        let (_tmp_dir, file_path) = write_test_fixture();
+        let mut bag = Bag::from(file_path).unwrap();
+
+        let query = Query::all();
+        let count = bag.read_messages(&query).count();
+        assert_eq!(count, 2000);
+
+        for msg_view in bag.read_messages(&query) {
+            match msg_view.topic.as_str() {
+                "/chatter" => {
+                    let msg = msg_view.instantiate::<StdString>().unwrap();
+                    dbg!(msg);
+                }
+                "/array" => {
+                    let msg = msg_view.instantiate::<Float64MultiArray>().unwrap();
+                    dbg!(msg);
+                }
+                &_ => panic!("Test fixture should only have these two"),
+            }
+        }
+
+        let query = Query::new().with_topics(&vec!["/chatter"]).build();
+
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 1000);
     }
