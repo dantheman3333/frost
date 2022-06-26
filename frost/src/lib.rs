@@ -9,10 +9,9 @@ type ConnectionID = u32;
 type ChunkHeaderLoc = u64;
 
 mod util;
-use std_msgs::std_msgs::Time;
+use util::msgs::Time;
 use util::query::{BagIter, Query};
 use util::time;
-mod std_msgs;
 
 pub struct Bag {
     pub file_path: PathBuf,
@@ -1048,8 +1047,10 @@ mod tests {
 
     use crate::{
         field_sep_index,
-        std_msgs::std_msgs::{Float64MultiArray, StdString},
-        util::query::Query,
+        util::{
+            msgs::{Msg, Time},
+            query::Query,
+        },
         Bag,
     };
 
@@ -1101,15 +1102,15 @@ mod tests {
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 2000);
 
+        impl Msg for String {}
+
         for msg_view in bag.read_messages(&query) {
             match msg_view.topic.as_str() {
                 "/chatter" => {
-                    let msg = msg_view.instantiate::<StdString>().unwrap();
-                    dbg!(msg);
+                    let _msg = msg_view.instantiate::<String>().unwrap();
                 }
-                "/array" => {
-                    let msg = msg_view.instantiate::<Float64MultiArray>().unwrap();
-                    dbg!(msg);
+                "/time" => {
+                    let _msg = msg_view.instantiate::<Time>().unwrap();
                 }
                 &_ => panic!("Test fixture should only have these two"),
             }

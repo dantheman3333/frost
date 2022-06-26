@@ -1,0 +1,3 @@
+[submodule "std_msgs"]
+	path = std_msgs
+	url = https://github.com/ros/std_msgs

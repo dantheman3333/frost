@@ -2,4 +2,5 @@
 
 members = [
     "frost",
+    "frost-codegen"
 ]

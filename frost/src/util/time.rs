@@ -1,7 +1,7 @@
 use std::fmt;
 use std::{io, time::Duration};
 
-use crate::std_msgs::std_msgs::Time;
+use crate::util::msgs::Time;
 
 use super::parsing;
 
