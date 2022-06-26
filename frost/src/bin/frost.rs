@@ -73,15 +73,12 @@ fn print_all(bag: &Bag) {
     }
 
     let max_topic_len = max_topic_len(&bag);
-    for (i, connection_data) in bag.connection_data.values().enumerate() {
+    for (i, (topic, data_type)) in bag.topics_and_types().iter().enumerate() {
         let col_display = if i == 0 { "topics:" } else { "" };
-        let msg_count = bag
-            .index_data
-            .get(&connection_data.connection_id)
-            .map_or_else(|| 0, |data| data.len());
+        let msg_count = bag.topic_message_count(topic).unwrap_or(0);
         println!(
             "{0: <13}{1: <max_topic_len$} {2:>10} msgs : {3}",
-            col_display, connection_data.topic, msg_count, connection_data.data_type
+            col_display, topic, msg_count, data_type
         );
     }
 }
