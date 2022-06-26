@@ -1039,7 +1039,6 @@ fn read_header_op(buf: &[u8]) -> io::Result<OpCode> {
 #[cfg(test)]
 mod tests {
     use std::{
-        collections::HashMap,
         fs::File,
         io::{BufReader, Write},
         path::PathBuf,
@@ -1050,7 +1049,7 @@ mod tests {
     use crate::{
         field_sep_index,
         std_msgs::std_msgs::{Float64MultiArray, StdString},
-        util::{msgs::Msg, query::Query},
+        util::query::Query,
         Bag,
     };
 
@@ -1115,11 +1114,6 @@ mod tests {
                 &_ => panic!("Test fixture should only have these two"),
             }
         }
-
-        let query = Query::new().with_topics(&vec!["/chatter"]).build();
-
-        let count = bag.read_messages(&query).count();
-        assert_eq!(count, 1000);
     }
 
     #[test]

@@ -1,9 +1,6 @@
 use std::collections::HashSet;
 
-use crate::{
-    read_header_op, std_msgs::std_msgs::Time, Bag, ConnectionID, IndexData, MessageDataHeader,
-    OpCode,
-};
+use crate::{std_msgs::std_msgs::Time, Bag, ConnectionID, IndexData, MessageDataHeader};
 
 use super::{msgs::MessageView, parsing::parse_le_u32_at};
 
