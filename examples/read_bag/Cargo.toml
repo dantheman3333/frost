@@ -1,0 +1,17 @@
+[package]
+name = "read_bag"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[[example]]
+name = "read_bag"
+path = "src/main.rs"
+
+[dependencies]
+frost = {path = "../../frost"}
+frost-codegen = {path = "../../frost-codegen"}
+serde = "1.0.2"
+serde_derive = "1.0.2"
+serde_rosmsg = "0.2.0"

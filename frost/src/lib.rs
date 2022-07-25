@@ -8,10 +8,13 @@ use std::time::Duration;
 type ConnectionID = u32;
 type ChunkHeaderLoc = u64;
 
+pub use util::msgs;
+pub use util::query;
+pub use util::time;
+
 mod util;
-use util::msgs::Time;
 use util::query::{BagIter, Query};
-use util::time;
+use util::time::Time;
 
 pub struct Bag {
     pub file_path: PathBuf,
@@ -1047,10 +1050,8 @@ mod tests {
 
     use crate::{
         field_sep_index,
-        util::{
-            msgs::{Msg, Time},
-            query::Query,
-        },
+        time::Time,
+        util::{msgs::Msg, query::Query},
         Bag,
     };
 
@@ -1102,7 +1103,10 @@ mod tests {
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 2000);
 
+        // these are technically the wrong types for loadig the messages,
+        // but we're not using codegen on the std_msgs for the lib
         impl Msg for String {}
+        impl Msg for Time {}
 
         for msg_view in bag.read_messages(&query) {
             match msg_view.topic.as_str() {

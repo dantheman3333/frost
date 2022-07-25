@@ -1,11 +1,9 @@
 use std::collections::HashSet;
 
+use crate::time::Time;
 use crate::{Bag, ConnectionID, IndexData, MessageDataHeader};
 
-use super::{
-    msgs::{MessageView, Time},
-    parsing::parse_le_u32_at,
-};
+use super::{msgs::MessageView, parsing::parse_le_u32_at};
 
 pub struct Query {
     topics: Option<Vec<String>>,

@@ -1,6 +1,5 @@
 use serde;
 use serde::de;
-use serde_derive::Deserialize;
 use serde_rosmsg;
 
 pub trait Msg {}
@@ -22,18 +21,3 @@ impl MessageView {
         serde_rosmsg::from_slice(self.bytes.as_slice())
     }
 }
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq)]
-pub struct Time {
-    pub secs: u32,
-    pub nsecs: u32,
-}
-
-impl Msg for Time {}
-
-#[derive(Debug, Deserialize, PartialEq)]
-pub struct Duration {
-    pub secs: u32,
-    pub nsecs: u32,
-}
-impl Msg for Duration {}
