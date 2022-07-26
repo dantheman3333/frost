@@ -13,7 +13,7 @@ pub struct MessageView {
 }
 
 impl MessageView {
-    pub fn instantiate<'de, T>(self) -> Result<T, serde_rosmsg::Error>
+    pub fn instantiate<'de, T>(&self) -> Result<T, serde_rosmsg::Error>
     where
         T: Msg,
         T: de::Deserialize<'de>,

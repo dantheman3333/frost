@@ -8,11 +8,13 @@ use std::time::Duration;
 type ConnectionID = u32;
 type ChunkHeaderLoc = u64;
 
+pub use util::msgs;
+pub use util::query;
+pub use util::time;
+
 mod util;
-use std_msgs::std_msgs::Time;
 use util::query::{BagIter, Query};
-use util::time;
-mod std_msgs;
+use util::time::Time;
 
 pub struct Bag {
     pub file_path: PathBuf,
@@ -1048,8 +1050,8 @@ mod tests {
 
     use crate::{
         field_sep_index,
-        std_msgs::std_msgs::{Float64MultiArray, StdString},
-        util::query::Query,
+        time::Time,
+        util::{msgs::Msg, query::Query},
         Bag,
     };
 
@@ -1087,7 +1089,7 @@ mod tests {
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 2000);
 
-        let query = Query::new().with_topics(&vec!["/chatter"]).build();
+        let query = Query::new().with_topics(&vec!["/chatter"]);
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 1000);
     }
@@ -1101,15 +1103,18 @@ mod tests {
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 2000);
 
+        // these are technically the wrong types for loadig the messages,
+        // but we're not using codegen on the std_msgs for the lib
+        impl Msg for String {}
+        impl Msg for Time {}
+
         for msg_view in bag.read_messages(&query) {
             match msg_view.topic.as_str() {
                 "/chatter" => {
-                    let msg = msg_view.instantiate::<StdString>().unwrap();
-                    dbg!(msg);
+                    let _msg = msg_view.instantiate::<String>().unwrap();
                 }
-                "/array" => {
-                    let msg = msg_view.instantiate::<Float64MultiArray>().unwrap();
-                    dbg!(msg);
+                "/time" => {
+                    let _msg = msg_view.instantiate::<Time>().unwrap();
                 }
                 &_ => panic!("Test fixture should only have these two"),
             }

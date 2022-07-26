@@ -1,5 +1,7 @@
 [workspace]
 
 members = [
+    "examples/read_bag",
     "frost",
+    "frost-codegen"
 ]

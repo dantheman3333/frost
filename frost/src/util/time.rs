@@ -1,7 +1,7 @@
 use std::fmt;
 use std::{io, time::Duration};
 
-use crate::std_msgs::std_msgs::Time;
+use serde_derive::Deserialize;
 
 use super::parsing;
 
@@ -13,6 +13,18 @@ pub const MAX: Time = Time {
 pub const ZERO: Time = Time { secs: 0, nsecs: 0 };
 
 pub const NS_TO_S: f32 = 1e-9;
+
+#[derive(Clone, Copy, Debug, Eq, Deserialize)]
+pub struct Time {
+    pub secs: u32,
+    pub nsecs: u32,
+}
+
+#[derive(Clone, Debug, PartialEq, Deserialize)]
+pub struct RosDuration {
+    pub secs: u32,
+    pub nsecs: u32,
+}
 
 impl From<Time> for Duration {
     fn from(time: Time) -> Self {

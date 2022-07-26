@@ -12,7 +12,7 @@ name = "frost"
 path = "src/bin/frost.rs"
 
 [dev-dependencies]
-tempfile = "3"
+tempfile = "3.3.0"
 
 [dependencies]
 bpaf = "0.4.3"
