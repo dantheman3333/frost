@@ -15,7 +15,7 @@ else
     pip install --extra-index-url https://rospypi.github.io/simple/ tf2_ros
 fi
 
-FILEPATH=./examples/read_bag/fixures/test.bag
+FILEPATH=./examples/read_bag/fixtures/test.bag
 
 if [ ! -f "$FILEPATH" ]; then
     python3 ./examples/read_bag/scripts/gen.py --output "$FILEPATH" --count 100
