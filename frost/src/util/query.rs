@@ -24,7 +24,7 @@ impl Query {
         Self::all()
     }
 
-    pub fn with_topics<S>(&mut self, topics: &Vec<S>) -> &mut Self
+    pub fn with_topics<S>(mut self, topics: &Vec<S>) -> Self
     where
         S: AsRef<str> + Into<String>,
     {
@@ -32,22 +32,14 @@ impl Query {
         self
     }
 
-    pub fn with_start_time(&mut self, start_time: Time) -> &mut Self {
+    pub fn with_start_time(mut self, start_time: Time) -> Self {
         self.start_time = Some(start_time);
         self
     }
 
-    pub fn with_end_time(&mut self, end_time: Time) -> &mut Self {
+    pub fn with_end_time(mut self, end_time: Time) -> Self {
         self.end_time = Some(end_time);
         self
-    }
-
-    pub fn build(&self) -> Self {
-        Query {
-            topics: self.topics.clone(),
-            start_time: self.start_time,
-            end_time: self.end_time,
-        }
     }
 }
 

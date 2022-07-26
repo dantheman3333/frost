@@ -42,4 +42,12 @@ fn main() {
             &_ => panic!("Test fixture should only have these two"),
         }
     }
+
+    let query = Query::new().with_topics(&vec!["/chatter"]);
+    let count = bag.read_messages(&query).count();
+    assert_eq!(count, 100);
+
+    let msg_view = bag.read_messages(&query).last().unwrap();
+    let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
+    println!("Last {} message is {}", &msg_view.topic, msg.data);
 }

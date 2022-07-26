@@ -1089,7 +1089,7 @@ mod tests {
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 2000);
 
-        let query = Query::new().with_topics(&vec!["/chatter"]).build();
+        let query = Query::new().with_topics(&vec!["/chatter"]);
         let count = bag.read_messages(&query).count();
         assert_eq!(count, 1000);
     }
