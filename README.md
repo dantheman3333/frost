@@ -50,43 +50,42 @@ cargo install --git https://github.com/kramer425/frost.git frost
 ## As a library
 
 ```rust
-    let mut bag = Bag::from(bag_path).unwrap();
+  let mut bag = Bag::from(bag_path).unwrap();
 
-    let query = Query::all();
-    let count = bag.read_messages(&query).count();
-    assert_eq!(count, 200);
+  let query = Query::all();
+  let count = bag.read_messages(&query).count();
+  assert_eq!(count, 200);
 
-    for msg_view in bag.read_messages(&query) {
-        match msg_view.topic.as_str() {
-            "/chatter" => {
-                let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
-                assert!(msg.data.starts_with("foo_"))
-            }
-            "/array" => {
-                let msg = msg_view
-                    .instantiate::<std_msgs::Float64MultiArray>()
-                    .unwrap();
-                assert_eq!(msg.data, vec![0f64, 0f64, 0f64]);
-            }
-            &_ => panic!("Test fixture should only have these two"),
-        }
-    }
+  for msg_view in bag.read_messages(&query) {
+      match msg_view.topic.as_str() {
+          "/chatter" => {
+              let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
+              assert!(msg.data.starts_with("foo_"))
+          }
+          "/array" => {
+              let msg = msg_view
+                  .instantiate::<std_msgs::Float64MultiArray>()
+                  .unwrap();
+              assert_eq!(msg.data, vec![0f64, 0f64, 0f64]);
+          }
+          &_ => panic!("Test fixture should only have these two"),
+      }
+  }
 
-    let query = Query::new().with_topics(&vec!["/chatter"]);
-    let count = bag.read_messages(&query).count();
-    assert_eq!(count, 100);
+  let query = Query::new().with_topics(&vec!["/chatter"]);
+  let count = bag.read_messages(&query).count();
+  assert_eq!(count, 100);
 
-    let msg_view = bag.read_messages(&query).last().unwrap();
-    let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
-    println!("Last {} message is {}", &msg_view.topic, msg.data);
+  let msg_view = bag.read_messages(&query).last().unwrap();
+  let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
+  println!("Last {} message is {}", &msg_view.topic, msg.data);
 ```
 
 See the full example and code-generation steps [here](examples/read_bag/README.md).
 
 ## TODO
 
-Currently does not support:
-- bag writing
-- compressed bags (`frost info` does)
+- reading compressed bags as a library (`info` cli works with compressed)
 - default values in ros msgs
-- probably a lot more
+- better errors
+- bag writing
