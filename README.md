@@ -3,11 +3,14 @@ rosbag + rust = frost
 
 Read rosbags using Rust. Supports custom types via code-generation.
 
-As a binary:
+## As a binary
+
 ```bash
-cargo run --release --bin frost info -- ./examples/read_bag/fixtures/test.bag
+cargo run --release --bin frost -- info ./examples/read_bag/fixtures/test.bag
+# or, if you've installed the binary
+frost info ./examples/read_bag/fixtures/test.bag
 ```
-```
+```bash
 path:        ./examples/read_bag/fixtures/test.bag
 version:     2.0
 duration:    99s
@@ -21,7 +24,30 @@ topics:      /chatter        100 msgs : std_msgs/String
              /array          100 msgs : std_msgs/Float64MultiArray
 ```
 
-As a library:
+There are more commands than the standard `rosbag info`, such as the `topics` argument, which will just print the topics in the bag.
+```bash
+frost info ./examples/read_bag/fixtures/test.bag --topics
+```
+```bash
+/array
+/chatter
+```
+
+Why use this over the normal `rosbag info`?
+
+On large bags this program is around 15x faster, e.g. 30s->2s. 
+
+
+### Installation
+
+```bash
+cargo install --git https://github.com/kramer425/frost.git frost
+```
+
+**Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
+
+
+## As a library
 
 ```rust
     let mut bag = Bag::from(bag_path).unwrap();
@@ -55,8 +81,12 @@ As a library:
     println!("Last {} message is {}", &msg_view.topic, msg.data);
 ```
 
+See the full example and code-generation steps [here](examples/read_bag/README.md).
+
+## TODO
+
 Currently does not support:
 - bag writing
-- compressed bags
+- compressed bags (`frost info` does)
 - default values in ros msgs
 - probably a lot more

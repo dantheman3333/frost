@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::io;
 use std::path::PathBuf;
 
@@ -64,11 +65,18 @@ fn print_all(bag: &Bag) {
     println!("{0: <13}{1}", "compression:", "TODO");
 
     let max_type_len = max_type_len(&bag);
-    for (i, connection_data) in bag.connection_data.values().enumerate() {
+    for (i, (data_type, md5sum)) in bag
+        .connection_data
+        .values()
+        .map(|data| (data.data_type.clone(), data.md5sum.clone()))
+        .collect::<HashSet<_>>()
+        .into_iter()
+        .enumerate()
+    {
         let col_display = if i == 0 { "types:" } else { "" };
         println!(
             "{0: <13}{1: <max_type_len$} [{2}]",
-            col_display, connection_data.data_type, connection_data.md5sum
+            col_display, data_type, md5sum
         );
     }
 
