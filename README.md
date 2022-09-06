@@ -81,7 +81,7 @@ cargo install --git https://github.com/kramer425/frost.git frost
   println!("Last {} message is {}", &msg_view.topic, msg.data);
 ```
 
-See the full example and code-generation steps [here](examples/read_bag/README.md).
+See the full example and code-generation steps [here](examples/read_bag).
 
 ## TODO
 
