@@ -9,7 +9,7 @@ To regenerate sample bags, run:
 ./examples/read_bag/scripts/generate_fixtures.sh
 ```
 
-To rerun code-generation for the [std_msgs](../../std_msgs), run:
+To rerun code-generation for the `std_msgs` (git submodule in the root of the project), run:
 ```bash
 cargo run --release --bin frost-codegen -- -i std_msgs -o ./examples/read_bag/src/msgs.rs
 ```
