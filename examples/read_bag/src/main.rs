@@ -43,7 +43,7 @@ fn main() {
         }
     }
 
-    let query = Query::new().with_topics(&vec!["/chatter"]);
+    let query = Query::new().with_topics(&["/chatter"]);
     let count = bag.read_messages(&query).count();
     assert_eq!(count, 100);
 

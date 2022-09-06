@@ -24,7 +24,7 @@ impl Query {
         Self::all()
     }
 
-    pub fn with_topics<S>(mut self, topics: &Vec<S>) -> Self
+    pub fn with_topics<S>(mut self, topics: &[S]) -> Self
     where
         S: AsRef<str> + Into<String>,
     {
@@ -130,5 +130,29 @@ impl<'a> Iterator for BagIter<'a> {
                 bytes: chunk_bytes[data_start..data_end].to_vec(),
             })
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Query;
+
+    #[test]
+    fn test_contruction_with_topics() {
+        let query = Query::new().with_topics(&["/chatter", "array"]);
+        assert_eq!(
+            query.topics,
+            Some(vec!("/chatter".to_string(), "array".to_string()))
+        );
+        assert_eq!(query.start_time, None);
+        assert_eq!(query.end_time, None);
+
+        let query = Query::new().with_topics(&vec!["/chatter", "array"]);
+        assert_eq!(
+            query.topics,
+            Some(vec!("/chatter".to_string(), "array".to_string()))
+        );
+        assert_eq!(query.start_time, None);
+        assert_eq!(query.end_time, None);
     }
 }

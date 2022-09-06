@@ -9,7 +9,10 @@ To regenerate sample bags, run:
 ./examples/read_bag/scripts/generate_fixtures.sh
 ```
 
-To rerun code-generation for the std_msgs, run:
+To rerun code-generation for the [std_msgs](../../std_msgs), run:
 ```bash
 cargo run --release --bin frost-codegen -- -i std_msgs -o ./examples/read_bag/src/msgs.rs
 ```
+
+The generation recursively scans every `.msg` file in the supplied `std_msgs` directory and creates Rust structs for them, which will be used by the `serde_rosmsg` crate for deserialization. 
+The autogenerate file can be found [here](src/msgs.rs). 
