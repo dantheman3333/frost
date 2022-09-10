@@ -15,7 +15,9 @@ path = "src/bin/frost.rs"
 tempfile = "3.3.0"
 
 [dependencies]
-bpaf = "0.4.3"
+bpaf = "0.5.7"
+chrono = "0.4.22"
+itertools = "0.10.3"
 serde = "1.0.2"
 serde_derive = "1.0.2"
 serde_rosmsg = "0.2.0"
