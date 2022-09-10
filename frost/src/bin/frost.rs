@@ -3,32 +3,34 @@ use std::io;
 use std::path::PathBuf;
 
 use bpaf::*;
+use itertools::Itertools;
 
 use frost::Bag;
 
-#[derive(Debug, Clone)]
-struct InfoOptions {
-    only_topics: bool,
-    file_path: PathBuf,
-}
-
 #[derive(Clone, Debug)]
-enum Command {
-    Info(InfoOptions),
+enum Opts {
+    TopicOptions { file_path: PathBuf },
+    InfoOptions { file_path: PathBuf, use_epoch: bool },
 }
 
-fn make_parser() -> Parser<Command> {
-    let only_topics = short('t').long("topics").help("Only print topics").switch();
+fn args() -> Opts {
     let file_path = positional_os("FILE").map(PathBuf::from);
-    let info_parser = construct!(InfoOptions {
-        only_topics,
-        file_path
-    });
-    let info_options: OptionParser<InfoOptions> = Info::default()
-        .descr("Options for frost info")
-        .for_parser(info_parser);
+    let use_epoch = long("epoch").help("Print times as epoch seconds").switch();
+    let info_cmd = construct!(Opts::InfoOptions {
+        file_path,
+        use_epoch
+    })
+    .to_options()
+    .descr("Print rosbag information")
+    .command("info");
+    let file_path = positional_os("FILE").map(PathBuf::from);
+    let topics_cmd = construct!(Opts::TopicOptions { file_path })
+        .to_options()
+        .descr("Print rosbag topics")
+        .command("topics");
 
-    command("info", Some("rosbag information"), info_options).map(Command::Info)
+    let parser = construct!([info_cmd, topics_cmd]);
+    parser.to_options().run()
 }
 
 fn max_type_len(bag: &Bag) -> usize {
@@ -48,19 +50,36 @@ fn max_topic_len(bag: &Bag) -> usize {
 }
 
 fn print_topics(bag: &Bag) {
-    for topic in bag.topics() {
+    for topic in bag.topics().into_iter().sorted() {
         println!("{topic}");
     }
 }
 
-fn print_all(bag: &Bag) {
-    println!("{:?}", bag.file_path);
+fn print_all(bag: &Bag, use_epoch: bool) {
+    let start_time = bag.start_time().unwrap();
+    let end_time = bag.end_time().unwrap();
 
     println!("{0: <13}{1}", "path:", bag.file_path.to_string_lossy());
     println!("{0: <13}{1}", "version:", bag.version);
     println!("{0: <13}{1:.2}s", "duration:", bag.duration().as_secs());
-    println!("{0: <13}{1}", "start:", bag.start_time().unwrap());
-    println!("{0: <13}{1}", "end:", bag.end_time().unwrap());
+    println!(
+        "{0: <13}{1}",
+        "start:",
+        if use_epoch {
+            f32::from(start_time).to_string()
+        } else {
+            start_time.as_datetime().to_string()
+        }
+    );
+    println!(
+        "{0: <13}{1}",
+        "end:",
+        if use_epoch {
+            f32::from(end_time).to_string()
+        } else {
+            end_time.as_datetime().to_string()
+        }
+    );
     println!("{0: <13}{1}", "messages:", bag.message_count());
     println!("{0: <13}{1}", "compression:", "TODO");
 
@@ -71,6 +90,7 @@ fn print_all(bag: &Bag) {
         .map(|data| (data.data_type.clone(), data.md5sum.clone()))
         .collect::<HashSet<_>>()
         .into_iter()
+        .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
         .enumerate()
     {
         let col_display = if i == 0 { "types:" } else { "" };
@@ -81,7 +101,12 @@ fn print_all(bag: &Bag) {
     }
 
     let max_topic_len = max_topic_len(&bag);
-    for (i, (topic, data_type)) in bag.topics_and_types().iter().enumerate() {
+    for (i, (topic, data_type)) in bag
+        .topics_and_types()
+        .into_iter()
+        .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
+        .enumerate()
+    {
         let col_display = if i == 0 { "topics:" } else { "" };
         let msg_count = bag.topic_message_count(topic).unwrap_or(0);
         println!(
@@ -92,20 +117,19 @@ fn print_all(bag: &Bag) {
 }
 
 fn main() -> io::Result<()> {
-    let args = Info::default()
-        .descr("An info utility for rosbags")
-        .for_parser(make_parser())
-        .run();
+    let args = args();
 
     match args {
-        Command::Info(info_args) => {
-            let bag = Bag::from(info_args.file_path)?;
-
-            if info_args.only_topics {
-                print_topics(&bag);
-            } else {
-                print_all(&bag);
-            }
+        Opts::TopicOptions { file_path } => {
+            let bag = Bag::from(file_path)?;
+            print_topics(&bag);
+        }
+        Opts::InfoOptions {
+            file_path,
+            use_epoch,
+        } => {
+            let bag = Bag::from(file_path)?;
+            print_all(&bag, use_epoch);
         }
     }
 

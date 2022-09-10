@@ -1,6 +1,7 @@
 use std::fmt;
 use std::{io, time::Duration};
 
+use chrono::{DateTime, TimeZone, Utc};
 use serde_derive::Deserialize;
 
 use super::parsing;
@@ -67,6 +68,9 @@ impl Time {
     }
     pub fn dur(&self, other: &Time) -> Duration {
         Duration::from(self) - Duration::from(other)
+    }
+    pub fn as_datetime(&self) -> DateTime<Utc> {
+        Utc.timestamp(self.secs as i64, self.nsecs)
     }
 }
 

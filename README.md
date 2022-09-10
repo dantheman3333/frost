@@ -14,19 +14,20 @@ frost info ./examples/read_bag/fixtures/test.bag
 path:        ./examples/read_bag/fixtures/test.bag
 version:     2.0
 duration:    99s
-start:       0.000001
-end:         99.0001
+start:       1970-01-01 00:00:00.000001 UTC
+end:         1970-01-01 00:01:39.000100 UTC
 messages:    200
 compression: TODO
-types:       std_msgs/String            [992ce8a1687cec8c8bd883ec73ca41d1]
-             std_msgs/Float64MultiArray [4b7d974086d4060e7db4613a7e6c3ba4]
-topics:      /chatter        100 msgs : std_msgs/String
-             /array          100 msgs : std_msgs/Float64MultiArray
+types:       std_msgs/Float64MultiArray [4b7d974086d4060e7db4613a7e6c3ba4]
+             std_msgs/String            [992ce8a1687cec8c8bd883ec73ca41d1]
+topics:      /array          100 msgs : std_msgs/Float64MultiArray
+             /chatter        100 msgs : std_msgs/String
 ```
+To print epoch seconds instead of UTC strings, pass the `--epoch` argument. 
 
-There are more commands than the standard `rosbag info`, such as the `topics` argument, which will just print the topics in the bag.
+There are more commands than the standard `rosbag info`, such as the `topics` command, which will just print the topics in the bag.
 ```bash
-frost info ./examples/read_bag/fixtures/test.bag --topics
+frost topics ./examples/read_bag/fixtures/test.bag
 ```
 ```bash
 /array
@@ -48,6 +49,9 @@ cargo install --git https://github.com/kramer425/frost.git frost
 
 
 ## As a library
+
+When using it as a library, code-generation is required to convert ros .msg files to Rust structs. 
+See the full example and code-generation steps [here](examples/read_bag).
 
 ```rust
   let mut bag = Bag::from(bag_path).unwrap();
@@ -80,8 +84,6 @@ cargo install --git https://github.com/kramer425/frost.git frost
   let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
   println!("Last {} message is {}", &msg_view.topic, msg.data);
 ```
-
-See the full example and code-generation steps [here](examples/read_bag).
 
 ## TODO
 
