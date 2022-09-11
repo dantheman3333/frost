@@ -5,3 +5,6 @@ members = [
     "frost",
     "frost-codegen"
 ]
+
+[profile.release]
+lto = true
