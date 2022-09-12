@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader, ErrorKind};
 use std::path::{Path, PathBuf};
@@ -718,7 +718,7 @@ impl Bag {
         self.topic_to_connection_ids.keys().collect()
     }
 
-    pub fn topics_and_types(&self) -> Vec<(&String, &String)> {
+    pub fn topics_and_types(&self) -> HashSet<(&String, &String)> {
         self.connection_data
             .values()
             .map(|data| (&data.topic, &data.data_type))
