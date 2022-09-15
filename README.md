@@ -36,7 +36,7 @@ frost topics ./examples/read_bag/fixtures/test.bag
 
 Why use this over the normal `rosbag info`?
 
-On large bags this program is around 15x faster, e.g. 30s->2s. 
+The `topics` command allows you to see topics without extra noise and on large bags this program is around 4x faster, with subsequent runs 15x faster.
 
 
 ### Installation
