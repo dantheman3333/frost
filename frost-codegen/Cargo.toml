@@ -11,5 +11,5 @@ frost = {path = "../frost"}
 lazy_static = "1.4.0"
 serde = "1.0.2"
 serde_derive = "1.0.2"
-serde-xml-rs = "0.5.1"
+serde-xml-rs = "0.6.0"
 walkdir = "2.3.2"

@@ -8,10 +8,12 @@ use std::time::Duration;
 type ConnectionID = u32;
 type ChunkHeaderLoc = u64;
 
+use errors::{FrostError, FrostErrorKind};
 pub use util::msgs;
 pub use util::query;
 pub use util::time;
 
+pub mod errors;
 mod util;
 use util::query::{BagIter, Query};
 use util::time::Time;
@@ -28,7 +30,7 @@ pub struct Bag {
 
 #[derive(Debug)]
 #[repr(u8)]
-enum OpCode {
+pub enum OpCode {
     BagHeader = 0x03,
     ChunkHeader = 0x05,
     ConnectionHeader = 0x07,
@@ -38,7 +40,7 @@ enum OpCode {
 }
 
 impl OpCode {
-    fn from(byte: u8) -> io::Result<OpCode> {
+    fn from(byte: u8) -> Result<OpCode, FrostError> {
         match byte {
             0x03 => Ok(OpCode::BagHeader),
             0x05 => Ok(OpCode::ChunkHeader),
@@ -46,10 +48,7 @@ impl OpCode {
             0x02 => Ok(OpCode::MessageData),
             0x04 => Ok(OpCode::IndexDataHeader),
             0x06 => Ok(OpCode::ChunkInfoHeader),
-            other => Err(io::Error::new(
-                ErrorKind::InvalidInput,
-                format!("Unknown op code {:#04x}", other),
-            )),
+            other => Err(FrostError::new(FrostErrorKind::InvalidOpCode(other))),
         }
     }
 }
@@ -60,16 +59,13 @@ fn read_le_u32<R: Read + Seek>(reader: &mut R) -> io::Result<u32> {
     Ok(u32::from_le_bytes(len_buf))
 }
 
-fn field_sep_index(buf: &[u8]) -> io::Result<usize> {
-    buf.iter().position(|&b| b == b'=').ok_or_else(|| {
-        io::Error::new(
-            ErrorKind::InvalidData,
-            format!("Expected '=' in buffer: {:?}", &buf),
-        )
-    })
+fn field_sep_index(buf: &[u8]) -> Result<usize, FrostError> {
+    buf.iter()
+        .position(|&b| b == b'=')
+        .ok_or_else(|| FrostError::new(FrostErrorKind::MissingFieldSeparator(buf.to_vec())))
 }
 
-fn parse_field(buf: &[u8], i: usize) -> io::Result<(usize, &[u8], &[u8])> {
+fn parse_field(buf: &[u8], i: usize) -> Result<(usize, &[u8], &[u8]), FrostError> {
     let mut i = i;
     let field_len = util::parsing::parse_le_u32_at(buf, i)? as usize;
     i += 4;
@@ -90,7 +86,7 @@ struct BagHeader {
 }
 
 impl BagHeader {
-    fn from(buf: &[u8]) -> io::Result<BagHeader> {
+    fn from(buf: &[u8]) -> Result<BagHeader, FrostError> {
         let mut i = 0;
 
         let mut index_pos = None;
@@ -108,20 +104,17 @@ impl BagHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::BagHeader as u8 {
-                        return Err(io::Error::new(
-                            ErrorKind::InvalidData,
-                            format!("Expected op {:?}, found {:?}", OpCode::BagHeader, op),
-                        ));
+                        return Err(FrostError::new(FrostErrorKind::InvalidRecordOp {
+                            expected: OpCode::BagHeader as u8,
+                            actual: op,
+                        }));
                     }
                 }
                 _ => {
-                    return Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "Unexpected field {} in BagHeader",
-                            String::from_utf8_lossy(name)
-                        ),
-                    ))
+                    return Err(FrostError::new(FrostErrorKind::InvalidRecordField {
+                        record_name: "BagHeader",
+                        field: String::from_utf8_lossy(name).to_string(),
+                    }))
                 }
             }
 
@@ -132,22 +125,22 @@ impl BagHeader {
 
         Ok(BagHeader {
             index_pos: index_pos.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'index_pos' in BagHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "BagHeader",
+                    field: "index_pos",
+                })
             })?,
             conn_count: conn_count.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'conn_count' in BagHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "BagHeader",
+                    field: "conn_count",
+                })
             })?,
             chunk_count: chunk_count.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'chunk_count' in BagHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "BagHeader",
+                    field: "chunk_count",
+                })
             })?,
         })
     }
@@ -182,7 +175,7 @@ impl ChunkHeader {
         chunk_header_pos: u64,
         chunk_data_pos: u64,
         compressed_size: u32,
-    ) -> io::Result<ChunkHeader> {
+    ) -> Result<ChunkHeader, FrostError> {
         let mut i = 0;
 
         let mut compression = None;
@@ -198,20 +191,17 @@ impl ChunkHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ChunkHeader as u8 {
-                        return Err(io::Error::new(
-                            ErrorKind::InvalidData,
-                            format!("Expected op {:?}, found {:?}", OpCode::ChunkHeader, op),
-                        ));
+                        return Err(FrostError::new(FrostErrorKind::InvalidRecordOp {
+                            expected: OpCode::ChunkHeader as u8,
+                            actual: op,
+                        }));
                     }
                 }
                 _ => {
-                    return Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "Unexpected field {} in ChunkHeader",
-                            String::from_utf8_lossy(name)
-                        ),
-                    ))
+                    return Err(FrostError::new(FrostErrorKind::InvalidRecordField {
+                        record_name: "ChunkHeader",
+                        field: String::from_utf8_lossy(name).to_string(),
+                    }))
                 }
             }
 
@@ -222,16 +212,16 @@ impl ChunkHeader {
 
         Ok(ChunkHeader {
             compression: compression.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'compression' in ChunkHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ChunkHeader",
+                    field: "compression",
+                })
             })?,
             uncompressed_size: size.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'size' in ChunkHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ChunkHeader",
+                    field: "size",
+                })
             })?,
             chunk_header_pos,
             chunk_data_pos,
@@ -252,7 +242,7 @@ struct ChunkInfoHeader {
 }
 
 impl ChunkInfoHeader {
-    fn from(buf: &[u8]) -> io::Result<ChunkInfoHeader> {
+    fn from(buf: &[u8]) -> Result<ChunkInfoHeader, FrostError> {
         let mut i = 0;
 
         let mut version = None;
@@ -274,20 +264,17 @@ impl ChunkInfoHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ChunkInfoHeader as u8 {
-                        return Err(io::Error::new(
-                            ErrorKind::InvalidData,
-                            format!("Expected op {:?}, found {:?}", OpCode::ChunkInfoHeader, op),
-                        ));
+                        return Err(FrostError::new(FrostErrorKind::InvalidRecordOp {
+                            expected: OpCode::ChunkInfoHeader as u8,
+                            actual: op,
+                        }));
                     }
                 }
                 _ => {
-                    return Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "Unexpected field {} in ChunkInfoHeader",
-                            String::from_utf8_lossy(name)
-                        ),
-                    ))
+                    return Err(FrostError::new(FrostErrorKind::InvalidRecordField {
+                        record_name: "ChunkInfoHeader",
+                        field: String::from_utf8_lossy(name).to_string(),
+                    }))
                 }
             }
 
@@ -298,34 +285,34 @@ impl ChunkInfoHeader {
 
         Ok(ChunkInfoHeader {
             version: version.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'ver' in ChunkInfoHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ChunkInfoHeader",
+                    field: "ver",
+                })
             })?,
             chunk_header_pos: chunk_header_pos.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'chunk_header_pos' in ChunkInfoHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ChunkInfoHeader",
+                    field: "chunk_header_pos",
+                })
             })?,
             start_time: start_time.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'start_time' in ChunkInfoHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ChunkInfoHeader",
+                    field: "start_time",
+                })
             })?,
             end_time: end_time.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'end_time' in ChunkInfoHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ChunkInfoHeader",
+                    field: "end_time",
+                })
             })?,
             connection_count: connection_count.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'count' in ChunkInfoHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ChunkInfoHeader",
+                    field: "count",
+                })
             })?,
         })
     }
@@ -352,7 +339,7 @@ struct ConnectionHeader {
 }
 
 impl ConnectionHeader {
-    fn from(buf: &[u8]) -> io::Result<ConnectionHeader> {
+    fn from(buf: &[u8]) -> Result<ConnectionHeader, FrostError> {
         let mut i = 0;
 
         let mut topic = None;
@@ -368,20 +355,17 @@ impl ConnectionHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ConnectionHeader as u8 {
-                        return Err(io::Error::new(
-                            ErrorKind::InvalidData,
-                            format!("Expected op {:?}, found {:?}", OpCode::ConnectionHeader, op),
-                        ));
+                        return Err(FrostError::new(FrostErrorKind::InvalidRecordOp {
+                            expected: OpCode::ConnectionHeader as u8,
+                            actual: op,
+                        }));
                     }
                 }
                 _ => {
-                    return Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "Unexpected field {} in ConnectionHeader",
-                            String::from_utf8_lossy(name)
-                        ),
-                    ))
+                    return Err(FrostError::new(FrostErrorKind::InvalidRecordField {
+                        record_name: "ConnectionHeader",
+                        field: String::from_utf8_lossy(name).to_string(),
+                    }))
                 }
             }
 
@@ -392,16 +376,16 @@ impl ConnectionHeader {
 
         Ok(ConnectionHeader {
             connection_id: connection_id.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'connection_id' in ConnectionHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ConnectionHeader",
+                    field: "connection_id",
+                })
             })?,
             topic: topic.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'topic' in ConnectionHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ConnectionHeader",
+                    field: "topic",
+                })
             })?,
         })
     }
@@ -420,7 +404,7 @@ pub struct ConnectionData {
 }
 
 impl ConnectionData {
-    fn from(buf: &[u8], connection_id: u32, topic: String) -> io::Result<ConnectionData> {
+    fn from(buf: &[u8], connection_id: u32, topic: String) -> Result<ConnectionData, FrostError> {
         let mut i = 0;
 
         let mut data_type = None;
@@ -443,13 +427,10 @@ impl ConnectionData {
                 b"callerid" => caller_id = Some(String::from_utf8_lossy(value).to_string()),
                 b"latching" => latching = value == b"1",
                 _ => {
-                    return Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "Unexpected field {} in ConnectionData",
-                            String::from_utf8_lossy(name)
-                        ),
-                    ))
+                    return Err(FrostError::new(FrostErrorKind::InvalidRecordField {
+                        record_name: "ConnectionData",
+                        field: String::from_utf8_lossy(name).to_string(),
+                    }))
                 }
             }
 
@@ -462,22 +443,22 @@ impl ConnectionData {
             connection_id,
             topic,
             data_type: data_type.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'data_type' in ConnectionData",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ConnectionData",
+                    field: "data_type",
+                })
             })?,
             md5sum: md5sum.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'md5sum' in ConnectionData",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ConnectionData",
+                    field: "md5sum",
+                })
             })?,
             message_definition: message_definition.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'message_definition' in ConnectionData",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "ConnectionData",
+                    field: "message_definition",
+                })
             })?,
             caller_id,
             latching,
@@ -492,7 +473,7 @@ struct IndexDataHeader {
 }
 
 impl IndexDataHeader {
-    fn from(buf: &[u8]) -> io::Result<IndexDataHeader> {
+    fn from(buf: &[u8]) -> Result<IndexDataHeader, FrostError> {
         let mut i = 0;
 
         let mut version = None;
@@ -510,20 +491,17 @@ impl IndexDataHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::IndexDataHeader as u8 {
-                        return Err(io::Error::new(
-                            ErrorKind::InvalidData,
-                            format!("Expected op {:?}, found {:?}", OpCode::IndexDataHeader, op),
-                        ));
+                        return Err(FrostError::new(FrostErrorKind::InvalidRecordOp {
+                            expected: OpCode::IndexDataHeader as u8,
+                            actual: op,
+                        }));
                     }
                 }
                 _ => {
-                    return Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "Unexpected field {} in IndexDataHeader",
-                            String::from_utf8_lossy(name)
-                        ),
-                    ))
+                    return Err(FrostError::new(FrostErrorKind::InvalidRecordField {
+                        record_name: "IndexDataHeader",
+                        field: String::from_utf8_lossy(name).to_string(),
+                    }))
                 }
             }
 
@@ -534,22 +512,22 @@ impl IndexDataHeader {
 
         Ok(IndexDataHeader {
             version: version.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'ver' in IndexDataHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "IndexDataHeader",
+                    field: "ver",
+                })
             })?,
             connection_id: connection_id.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'conn' in IndexDataHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "IndexDataHeader",
+                    field: "conn",
+                })
             })?,
             count: count.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'count' in IndexDataHeader",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "IndexDataHeader",
+                    field: "count",
+                })
             })?,
         })
     }
@@ -587,7 +565,7 @@ struct MessageDataHeader {
 }
 
 impl MessageDataHeader {
-    fn from(buf: &[u8]) -> io::Result<MessageDataHeader> {
+    fn from(buf: &[u8]) -> Result<MessageDataHeader, FrostError> {
         let mut i = 0;
 
         let mut conn = None;
@@ -603,20 +581,17 @@ impl MessageDataHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::MessageData as u8 {
-                        return Err(io::Error::new(
-                            ErrorKind::InvalidData,
-                            format!("Expected op {:?}, found {:?}", OpCode::MessageData, op),
-                        ));
+                        return Err(FrostError::new(FrostErrorKind::InvalidRecordOp {
+                            expected: OpCode::MessageData as u8,
+                            actual: op,
+                        }));
                     }
                 }
                 _ => {
-                    return Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!(
-                            "Unexpected field {} in MessageData",
-                            String::from_utf8_lossy(name)
-                        ),
-                    ))
+                    return Err(FrostError::new(FrostErrorKind::InvalidRecordField {
+                        record_name: "MessageData",
+                        field: String::from_utf8_lossy(name).to_string(),
+                    }))
                 }
             }
 
@@ -627,23 +602,23 @@ impl MessageDataHeader {
 
         Ok(MessageDataHeader {
             conn: conn.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'conn' in MessageData",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "MessageData",
+                    field: "conn",
+                })
             })?,
             time: time.ok_or_else(|| {
-                io::Error::new(
-                    ErrorKind::InvalidData,
-                    "Missing field 'chunk_header_pos' in MessageData",
-                )
+                FrostError::new(FrostErrorKind::MissingRecordField {
+                    record_name: "MessageData",
+                    field: "time",
+                })
             })?,
         })
     }
 }
 
 impl Bag {
-    pub fn from<P>(file_path: P) -> io::Result<Bag>
+    pub fn from<P>(file_path: P) -> Result<Bag, FrostError>
     where
         P: AsRef<Path> + Into<PathBuf>,
     {
@@ -752,20 +727,16 @@ impl Bag {
         self.chunk_bytes.get(&chunk_loc).unwrap().clone()
     }
 
-    fn version_check<R: Read + Seek>(reader: &mut R) -> io::Result<String> {
+    fn version_check<R: Read + Seek>(reader: &mut R) -> Result<String, FrostError> {
         let mut buf = [0u8; 13];
         let expected = b"#ROSBAG V2.0\n";
         reader.read_exact(&mut buf)?;
         if buf == *expected {
             Ok("2.0".into())
         } else {
-            Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "Got unexpected rosbag version: {}",
-                    String::from_utf8_lossy(&buf)
-                ),
-            ))
+            Err(FrostError::new(FrostErrorKind::NotARosbag(
+                String::from_utf8_lossy(&buf).to_string(),
+            )))
         }
     }
 
@@ -785,11 +756,11 @@ impl Bag {
     fn parse_bag_header<R: Read + Seek>(
         header_buf: &[u8],
         reader: &mut R,
-    ) -> io::Result<BagHeader> {
+    ) -> Result<BagHeader, FrostError> {
         let bag_header = BagHeader::from(header_buf)?;
 
         if bag_header.index_pos == 0 {
-            return Err(io::Error::new(ErrorKind::InvalidData, "Unindexed bag"));
+            return Err(FrostError::new(FrostErrorKind::UnindexedBag));
         }
 
         let data_len = read_le_u32(reader)?;
@@ -801,7 +772,7 @@ impl Bag {
     fn parse_connection<R: Read + Seek>(
         header_buf: &[u8],
         reader: &mut R,
-    ) -> io::Result<ConnectionData> {
+    ) -> Result<ConnectionData, FrostError> {
         let connection_header = ConnectionHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
         ConnectionData::from(
@@ -815,7 +786,7 @@ impl Bag {
         header_buf: &[u8],
         reader: &mut R,
         chunk_header_pos: u64,
-    ) -> io::Result<ChunkHeader> {
+    ) -> Result<ChunkHeader, FrostError> {
         let data_len = read_le_u32(reader)?;
         let chunk_data_pos = reader.stream_position()?;
 
@@ -829,7 +800,7 @@ impl Bag {
     fn parse_chunk_info<R: Read + Seek>(
         header_buf: &[u8],
         reader: &mut R,
-    ) -> io::Result<(ChunkInfoHeader, Vec<ChunkInfoData>)> {
+    ) -> Result<(ChunkInfoHeader, Vec<ChunkInfoData>), FrostError> {
         let chunk_info_header = ChunkInfoHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
 
@@ -840,14 +811,11 @@ impl Bag {
             .collect();
 
         if chunk_info_data.len() != chunk_info_header.connection_count as usize {
-            return Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "Expected {} chunk_info_data, found {}",
-                    chunk_info_header.connection_count,
-                    chunk_info_data.len()
-                ),
-            ));
+            return Err(FrostError::new(FrostErrorKind::MissingRecords {
+                record_name: "chunk_info_data",
+                expected: chunk_info_header.connection_count as usize,
+                actual: chunk_info_data.len(),
+            }));
         }
 
         Ok((chunk_info_header, chunk_info_data))
@@ -857,7 +825,7 @@ impl Bag {
         header_buf: &[u8],
         reader: &mut R,
         chunk_header_pos: u64,
-    ) -> io::Result<(ConnectionID, Vec<IndexData>)> {
+    ) -> Result<(ConnectionID, Vec<IndexData>), FrostError> {
         let index_data_header = IndexDataHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
 
@@ -868,14 +836,11 @@ impl Bag {
             .collect();
 
         if index_data.len() != index_data_header.count as usize {
-            return Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "Expected {} IndexData, found {}",
-                    index_data_header.count,
-                    index_data.len()
-                ),
-            ));
+            return Err(FrostError::new(FrostErrorKind::MissingRecords {
+                record_name: "IndexData",
+                expected: index_data_header.count as usize,
+                actual: index_data.len(),
+            }));
         }
 
         Ok((index_data_header.connection_id, index_data))
@@ -883,11 +848,14 @@ impl Bag {
 
     fn parse_records<R: Read + Seek>(
         reader: &mut R,
-    ) -> io::Result<(
-        BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
-        BTreeMap<ConnectionID, ConnectionData>,
-        BTreeMap<ConnectionID, Vec<IndexData>>,
-    )> {
+    ) -> Result<
+        (
+            BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
+            BTreeMap<ConnectionID, ConnectionData>,
+            BTreeMap<ConnectionID, Vec<IndexData>>,
+        ),
+        FrostError,
+    > {
         let mut bag_header: Option<BagHeader> = None;
         let mut chunk_headers: Vec<ChunkHeader> = Vec::new();
         let mut chunk_infos: Vec<(ChunkInfoHeader, Vec<ChunkInfoData>)> = Vec::new();
@@ -901,7 +869,7 @@ impl Bag {
             if let Err(e) = maybe_header_len {
                 match e.kind() {
                     ErrorKind::UnexpectedEof => break,
-                    _ => return Err(e),
+                    _ => return Err(FrostError::new(FrostErrorKind::Io(e))),
                 }
             }
             let header_len = maybe_header_len.unwrap();
@@ -924,10 +892,9 @@ impl Bag {
                 }
                 OpCode::IndexDataHeader => {
                     let chunk_header_pos = last_chunk_header_pos.ok_or_else(|| {
-                        io::Error::new(
-                            ErrorKind::InvalidData,
+                        FrostError::new(FrostErrorKind::InvalidBag(
                             "Expected a Chunk before reading IndexData",
-                        )
+                        ))
                     })?;
                     let (connection_id, mut data) =
                         Bag::parse_index(&header_buf, reader, chunk_header_pos)?;
@@ -942,46 +909,34 @@ impl Bag {
                 OpCode::ChunkInfoHeader => {
                     chunk_infos.push(Bag::parse_chunk_info(&header_buf, reader)?);
                 }
-                _ => {
-                    return Err(io::Error::new(
-                        ErrorKind::InvalidData,
-                        format!("Unexpected header op code at the record level: {:?}", op),
-                    ))
+                OpCode::MessageData => {
+                    return Err(FrostError::new(FrostErrorKind::InvalidHeaderOp(op)))
                 }
             }
         }
 
         let bag_header = bag_header
-            .ok_or_else(|| io::Error::new(ErrorKind::InvalidData, "Missing BagHeader"))?;
+            .ok_or_else(|| FrostError::new(FrostErrorKind::InvalidBag("Missing BagHeader")))?;
         if bag_header.chunk_count as usize != chunk_headers.len() {
-            return Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "Expected {} ChunkHeader, found {}",
-                    bag_header.chunk_count,
-                    chunk_headers.len()
-                ),
-            ));
+            return Err(FrostError::new(FrostErrorKind::MissingRecords {
+                record_name: "ChunkHeader",
+                expected: bag_header.chunk_count as usize,
+                actual: chunk_headers.len(),
+            }));
         }
         if bag_header.chunk_count as usize != chunk_infos.len() {
-            return Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "Expected {} ChunkInfoHeader, found {}",
-                    bag_header.chunk_count,
-                    chunk_infos.len()
-                ),
-            ));
+            return Err(FrostError::new(FrostErrorKind::MissingRecords {
+                record_name: "ChunkInfoHeader",
+                expected: bag_header.chunk_count as usize,
+                actual: chunk_infos.len(),
+            }));
         }
         if bag_header.conn_count as usize != connections.len() {
-            return Err(io::Error::new(
-                ErrorKind::InvalidData,
-                format!(
-                    "Expected {} Connections, found {}",
-                    bag_header.conn_count,
-                    connections.len()
-                ),
-            ));
+            return Err(FrostError::new(FrostErrorKind::MissingRecords {
+                record_name: "Connections",
+                expected: bag_header.conn_count as usize,
+                actual: connections.len(),
+            }));
         }
 
         let chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata> = chunk_headers
@@ -1017,7 +972,7 @@ impl Bag {
     }
 }
 
-fn read_header_op(buf: &[u8]) -> io::Result<OpCode> {
+fn read_header_op(buf: &[u8]) -> Result<OpCode, FrostError> {
     let mut i = 0;
     loop {
         let (new_index, name, value) = parse_field(buf, i)?;
@@ -1032,10 +987,7 @@ fn read_header_op(buf: &[u8]) -> io::Result<OpCode> {
             break;
         }
     }
-    Err(io::Error::new(
-        ErrorKind::InvalidData,
-        "No opcode field found",
-    ))
+    Err(FrostError::new(FrostErrorKind::MissingHeaderOp))
 }
 
 #[cfg(test)]

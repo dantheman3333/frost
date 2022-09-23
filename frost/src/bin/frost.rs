@@ -1,10 +1,10 @@
 use std::collections::HashSet;
-use std::io;
 use std::path::PathBuf;
 
 use bpaf::*;
 use itertools::Itertools;
 
+use frost::errors::FrostError;
 use frost::Bag;
 
 #[derive(Clone, Debug)]
@@ -116,7 +116,7 @@ fn print_all(bag: &Bag, use_epoch: bool) {
     }
 }
 
-fn main() -> io::Result<()> {
+fn main() -> Result<(), FrostError> {
     let args = args();
 
     match args {
