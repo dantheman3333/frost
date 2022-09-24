@@ -34,22 +34,27 @@ frost topics ./examples/read_bag/fixtures/test.bag
 /chatter
 ```
 
-Why use this over the normal `rosbag info`?
+### Why use this over the normal `rosbag info`?
 
-The `topics` command allows you to see topics without extra noise and on large bags this program is around 4x faster, with subsequent runs 15x faster.
+The `topics` command allows you to see topics without extra noise that `info` provides, and on large bags this program is around 4x faster, with subsequent runs up to 15x faster.
 
 
-### Installation
+## Installation
 **Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
 
 ```bash
 cargo install --git https://github.com/kramer425/frost.git frost
 ```
 
-If you would like to set up bash auto-completion for `Frost` arguments, run:
+If you would like to set up `bash` auto-completion for `frost` arguments, run:
 ```bash
 frost --bpaf-complete-style-bash >> ~/.bash_completion
 source ~/.bash_completion
+```
+Or, for `zsh` (untested):
+```zsh
+frost --bpaf-complete-style-zsh > ~/.zsh/_frost
+source ~/.zsh/_frost
 ```
 
 ## As a library
@@ -91,7 +96,8 @@ See the full example and code-generation steps [here](examples/read_bag).
 
 ## TODO
 
-- reading compressed bags as a library (`info` cli works with compressed)
+- reading compressed bags as a library (`frost info/topics` command line works with compressed)
 - default values in ros msgs
 - better errors
+- a `frost echo` command
 - bag writing
