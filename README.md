@@ -40,13 +40,17 @@ The `topics` command allows you to see topics without extra noise and on large b
 
 
 ### Installation
+**Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
 
 ```bash
 cargo install --git https://github.com/kramer425/frost.git frost
 ```
 
-**Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
-
+If you would like to set up bash auto-completion for `Frost` arguments, run:
+```bash
+frost --bpaf-complete-style-bash >> ~/.bash_completion
+source ~/.bash_completion
+```
 
 ## As a library
 
