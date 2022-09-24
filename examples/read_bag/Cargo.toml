@@ -11,7 +11,7 @@ path = "src/main.rs"
 
 [dependencies]
 frost = {path = "../../frost"}
-serde = "1.0.2"
-serde_derive = "1.0.2"
-serde_rosmsg = "0.2.0"
-tempfile = "3.3.0"
+serde = { workspace = true }
+serde_derive = { workspace = true }
+serde_rosmsg = { workspace = true }
+tempfile =  { workspace = true }
