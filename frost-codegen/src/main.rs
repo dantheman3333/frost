@@ -163,17 +163,17 @@ struct Opts {
     output_path: PathBuf,
 }
 
-fn build_parser() -> Parser<Opts> {
+fn build_parser() -> impl Parser<Opts> {
     let input_path = short('i')
         .long("input_path")
         .help("Path to a root folder containing ros msg files.")
-        .argument_os("INPUT_PATH")
-        .map(PathBuf::from);
+        .argument::<PathBuf>("INPUT_PATH");
+
     let output_path = short('o')
         .long("output_path")
         .help("Path to a folder which will contain generated Rust files.")
-        .argument_os("OUTPUT_PATH")
-        .map(PathBuf::from);
+        .argument::<PathBuf>("OUTPUT_PATH");
+
     construct!(Opts {
         input_path,
         output_path
@@ -286,7 +286,7 @@ fn get_mods_and_msgs(
 }
 
 fn main() -> Result<()> {
-    let opts = Info::default().for_parser(build_parser()).run();
+    let opts = build_parser().to_options().run();
 
     let (mods, msgs) = get_mods_and_msgs(&opts.input_path)?;
 

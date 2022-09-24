@@ -13,8 +13,12 @@ enum Opts {
     InfoOptions { file_path: PathBuf, use_epoch: bool },
 }
 
+fn file_parser() -> impl Parser<PathBuf> {
+    positional::<PathBuf>("FILE")
+}
+
 fn args() -> Opts {
-    let file_path = positional_os("FILE").map(PathBuf::from);
+    let file_path = file_parser();
     let use_epoch = long("epoch").help("Print times as epoch seconds").switch();
     let info_cmd = construct!(Opts::InfoOptions {
         file_path,
@@ -23,7 +27,7 @@ fn args() -> Opts {
     .to_options()
     .descr("Print rosbag information")
     .command("info");
-    let file_path = positional_os("FILE").map(PathBuf::from);
+    let file_path = file_parser();
     let topics_cmd = construct!(Opts::TopicOptions { file_path })
         .to_options()
         .descr("Print rosbag topics")
