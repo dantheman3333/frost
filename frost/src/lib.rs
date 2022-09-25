@@ -1000,11 +1000,11 @@ mod tests {
 
         let query = Query::all();
         let count = bag.read_messages(&query).count();
-        assert_eq!(count, 2000);
+        assert_eq!(count, 200);
 
         let query = Query::new().with_topics(&vec!["/chatter"]);
         let count = bag.read_messages(&query).count();
-        assert_eq!(count, 1000);
+        assert_eq!(count, 100);
     }
 
     #[test]
@@ -1014,7 +1014,7 @@ mod tests {
 
         let query = Query::all();
         let count = bag.read_messages(&query).count();
-        assert_eq!(count, 2000);
+        assert_eq!(count, 200);
 
         // these are technically the wrong types for loadig the messages,
         // but we're not using codegen on the std_msgs for the lib
