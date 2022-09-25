@@ -13,14 +13,12 @@ if [ -f "$FILEPATH" ]; then
     exit 0
 fi
 
-if [ -d "./venv" ]; then
+if [ -d "venv" ]; then
     source ./venv/bin/activate
 else
-    python3 venv venv
+    python3 -m venv venv
     source ./venv/bin/activate
-    pip install --extra-index-url https://rospypi.github.io/simple/ rospy
-    pip install --extra-index-url https://rospypi.github.io/simple/ rosbag
-    pip install --extra-index-url https://rospypi.github.io/simple/ tf2_ros
+    pip install --extra-index-url https://rospypi.github.io/simple/ rospy rosbag tf2_ros roslz4
 fi
 
 python3 ./frost/tests/scripts/gen.py --output "$FILEPATH" --count 100
