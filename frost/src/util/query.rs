@@ -99,6 +99,14 @@ impl<'a> Iterator for BagIter<'a> {
             None
         } else {
             let data = self.index_data.get(self.current_index).unwrap().clone();
+            let topic = self
+                .bag
+                .connection_data
+                .get(&data.conn_id)
+                .unwrap()
+                .topic
+                .clone();
+
             let chunk_bytes = self.bag.get_chunk_bytes(data.chunk_header_pos);
 
             let mut pos = data.offset;
@@ -120,13 +128,7 @@ impl<'a> Iterator for BagIter<'a> {
             self.current_index += 1;
 
             Some(MessageView {
-                topic: self
-                    .bag
-                    .connection_data
-                    .get(&data.conn_id)
-                    .unwrap()
-                    .topic
-                    .clone(),
+                topic,
                 bytes: chunk_bytes[data_start..data_end].to_vec(),
             })
         }

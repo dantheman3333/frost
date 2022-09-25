@@ -689,11 +689,11 @@ impl Bag {
     ///Reads a chunk from disc
     ///
     ///Does not do anything if a chunk has already been read
-    pub(crate) fn get_chunk_bytes<'a>(&'a mut self, chunk_loc: ChunkHeaderLoc) -> Vec<u8> {
+    pub(crate) fn get_chunk_bytes<'a>(&'a mut self, chunk_loc: ChunkHeaderLoc) -> &[u8] {
         if !self.chunk_bytes.contains_key(&chunk_loc) {
             self.populate_chunk_bytes(chunk_loc);
         }
-        self.chunk_bytes.get(&chunk_loc).unwrap().clone()
+        self.chunk_bytes.get(&chunk_loc).unwrap()
     }
 
     fn version_check<R: Read + Seek>(reader: &mut R) -> Result<String, FrostError> {
