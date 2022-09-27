@@ -961,12 +961,7 @@ mod tests {
 
     use tempfile::{tempdir, TempDir};
 
-    use crate::{
-        field_sep_index,
-        time::Time,
-        util::{msgs::Msg, query::Query},
-        Bag,
-    };
+    use crate::{field_sep_index, Bag};
 
     fn write_test_fixture() -> (TempDir, PathBuf) {
         let bytes = include_bytes!("../tests/fixtures/test.bag");
@@ -991,47 +986,6 @@ mod tests {
     fn bag_from() {
         let (_tmp_dir, file_path) = write_test_fixture();
         Bag::from(file_path).unwrap();
-    }
-
-    #[test]
-    fn bag_iter() {
-        let (_tmp_dir, file_path) = write_test_fixture();
-        let mut bag = Bag::from(file_path).unwrap();
-
-        let query = Query::all();
-        let count = bag.read_messages(&query).count();
-        assert_eq!(count, 200);
-
-        let query = Query::new().with_topics(&vec!["/chatter"]);
-        let count = bag.read_messages(&query).count();
-        assert_eq!(count, 100);
-    }
-
-    #[test]
-    fn msg_reading() {
-        let (_tmp_dir, file_path) = write_test_fixture();
-        let mut bag = Bag::from(file_path).unwrap();
-
-        let query = Query::all();
-        let count = bag.read_messages(&query).count();
-        assert_eq!(count, 200);
-
-        // these are technically the wrong types for loadig the messages,
-        // but we're not using codegen on the std_msgs for the lib
-        impl Msg for String {}
-        impl Msg for Time {}
-
-        for msg_view in bag.read_messages(&query) {
-            match msg_view.topic.as_str() {
-                "/chatter" => {
-                    let _msg = msg_view.instantiate::<String>().unwrap();
-                }
-                "/time" => {
-                    let _msg = msg_view.instantiate::<Time>().unwrap();
-                }
-                &_ => panic!("Test fixture should only have these two"),
-            }
-        }
     }
 
     #[test]
