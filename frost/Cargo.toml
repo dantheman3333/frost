@@ -18,6 +18,7 @@ tempfile = { workspace = true }
 bpaf = { workspace = true }
 chrono = "0.4.22"
 itertools = "0.10.3"
+lz4_flex = "0.9.5"
 serde = { workspace = true }
 serde_derive = { workspace = true }
 serde_rosmsg = { workspace = true }

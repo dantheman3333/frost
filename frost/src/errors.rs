@@ -21,6 +21,7 @@ pub enum FrostErrorKind {
     UnindexedBag,
     InvalidBag(&'static str),
     Deserialization(serde_rosmsg::Error),
+    Decompression(lz4_flex::block::DecompressError),
     Io(io::Error),
 }
 
@@ -34,6 +35,7 @@ impl fmt::Display for FrostError {
             FrostErrorKind::UnindexedBag => write!(f, "unindexed bag"),
             FrostErrorKind::InvalidBag(s) => write!(f, "invalid bag: {s}"),
             FrostErrorKind::Deserialization(ref e) => e.fmt(f),
+            FrostErrorKind::Decompression(ref e) => e.fmt(f),
         }
     }
 }
@@ -52,6 +54,14 @@ impl From<serde_rosmsg::Error> for FrostError {
     fn from(e: serde_rosmsg::Error) -> FrostError {
         FrostError {
             kind: FrostErrorKind::Deserialization(e),
+        }
+    }
+}
+
+impl From<lz4_flex::block::DecompressError> for FrostError {
+    fn from(e: lz4_flex::block::DecompressError) -> FrostError {
+        FrostError {
+            kind: FrostErrorKind::Decompression(e),
         }
     }
 }
