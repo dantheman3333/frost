@@ -21,8 +21,8 @@ use util::time::Time;
 pub struct Bag {
     pub file_path: PathBuf,
     pub version: String,
-    chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
-    chunk_bytes: BTreeMap<ChunkHeaderLoc, Vec<u8>>,
+    pub(crate) chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
+    pub(crate) chunk_bytes: BTreeMap<ChunkHeaderLoc, Vec<u8>>,
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
     topic_to_connection_ids: BTreeMap<String, Vec<ConnectionID>>,
@@ -669,31 +669,25 @@ impl Bag {
             .collect()
     }
 
-    fn populate_chunk_bytes(&mut self, chunk_loc: ChunkHeaderLoc) {
+    pub(crate) fn populate_chunk_bytes(&mut self) {
+        if self.chunk_bytes.len() > 0 {
+            return;
+        }
+
         let file = File::open(&self.file_path).unwrap();
         let mut reader = BufReader::new(file);
-        let metadata = self
-            .chunk_metadata
-            .get(&chunk_loc)
-            .expect(format!("Tried to get a chunk that doesn't exist {}", chunk_loc).as_ref());
 
-        let mut buf = vec![0u8; metadata.uncompressed_size as usize];
-        reader
-            .seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))
-            .expect(format!("Failed to seek to {}", metadata.chunk_data_pos).as_ref());
-        reader
-            .read_exact(&mut buf[..])
-            .expect(format!("Failed to read chunk {} num bytes {}", chunk_loc, buf.len()).as_ref());
-        self.chunk_bytes.insert(chunk_loc, buf);
-    }
-    ///Reads a chunk from disc
-    ///
-    ///Does not do anything if a chunk has already been read
-    pub(crate) fn get_chunk_bytes<'a>(&'a mut self, chunk_loc: ChunkHeaderLoc) -> &[u8] {
-        if !self.chunk_bytes.contains_key(&chunk_loc) {
-            self.populate_chunk_bytes(chunk_loc);
+        //TODO: compressed bags, parallelization
+        for (chunk_loc, metadata) in self.chunk_metadata.iter() {
+            let mut buf = vec![0u8; metadata.uncompressed_size as usize];
+            reader
+                .seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))
+                .expect(format!("Failed to seek to {}", metadata.chunk_data_pos).as_ref());
+            reader.read_exact(&mut buf[..]).expect(
+                format!("Failed to read chunk {} num bytes {}", chunk_loc, buf.len()).as_ref(),
+            );
+            self.chunk_bytes.insert(*chunk_loc, buf);
         }
-        self.chunk_bytes.get(&chunk_loc).unwrap()
     }
 
     fn version_check<R: Read + Seek>(reader: &mut R) -> Result<String, FrostError> {

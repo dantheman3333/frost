@@ -44,7 +44,7 @@ impl Query {
 }
 
 pub struct BagIter<'a> {
-    bag: &'a mut Bag,
+    bag: &'a Bag,
     index_data: Vec<IndexData>,
     current_index: usize,
 }
@@ -83,6 +83,9 @@ impl<'a> BagIter<'a> {
             })
             .collect();
         index_data.sort_by(|a, b| a.time.cmp(&b.time));
+
+        bag.populate_chunk_bytes();
+
         BagIter {
             bag,
             index_data,
@@ -92,22 +95,17 @@ impl<'a> BagIter<'a> {
 }
 
 impl<'a> Iterator for BagIter<'a> {
-    type Item = MessageView;
+    type Item = MessageView<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_index >= self.index_data.len() {
             None
         } else {
             let data = self.index_data.get(self.current_index).unwrap().clone();
-            let topic = self
-                .bag
-                .connection_data
-                .get(&data.conn_id)
-                .unwrap()
-                .topic
-                .clone();
 
-            let chunk_bytes = self.bag.get_chunk_bytes(data.chunk_header_pos);
+            let topic = &self.bag.connection_data.get(&data.conn_id).unwrap().topic;
+
+            let chunk_bytes = self.bag.chunk_bytes.get(&data.chunk_header_pos)?;
 
             let mut pos = data.offset;
 
@@ -129,7 +127,10 @@ impl<'a> Iterator for BagIter<'a> {
 
             Some(MessageView {
                 topic,
-                bytes: chunk_bytes[data_start..data_end].to_vec(),
+                chunk_loc: data.chunk_header_pos,
+                bag: &self.bag,
+                start_index: data_start,
+                end_index: data_end,
             })
         }
     }

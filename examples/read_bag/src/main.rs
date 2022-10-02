@@ -28,7 +28,7 @@ fn main() {
     assert_eq!(count, 200);
 
     for msg_view in bag.read_messages(&query) {
-        match msg_view.topic.as_str() {
+        match msg_view.topic {
             "/chatter" => {
                 let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
                 assert!(msg.data.starts_with("foo_"))
@@ -39,7 +39,7 @@ fn main() {
                     .unwrap();
                 assert_eq!(msg.data, vec![0f64, 0f64, 0f64]);
             }
-            &_ => panic!("Test fixture should only have these two"),
+            &_ => panic!("Test fixture should only have '/chatter' and '/array'"),
         }
     }
 
