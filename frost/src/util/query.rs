@@ -101,7 +101,7 @@ impl<'a> Iterator for BagIter<'a> {
         if self.current_index >= self.index_data.len() {
             None
         } else {
-            let data = self.index_data.get(self.current_index).unwrap().clone();
+            let data = self.index_data.get(self.current_index)?;
 
             let topic = &self.bag.connection_data.get(&data.conn_id).unwrap().topic;
 
