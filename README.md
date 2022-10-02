@@ -66,13 +66,16 @@ See the full example and code-generation steps [here](examples/read_bag).
   let mut bag = Bag::from(bag_path).unwrap();
 
   let query = Query::all();
-  let count = bag.read_messages(&query).count();
+  let count = bag.read_messages(&query).unwrap().count();
   assert_eq!(count, 200);
 
-  for msg_view in bag.read_messages(&query) {
+  for msg_view in bag.read_messages(&query).unwrap() {
       match msg_view.topic {
           "/chatter" => {
               let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
+              // because frost has ros msg -> rust struct generation,
+              // you can safely access your data with the correct rust types: 
+              // `msg.data` is a `std::String` so you have access to `starts_with`
               assert!(msg.data.starts_with("foo_"))
           }
           "/array" => {
@@ -81,17 +84,13 @@ See the full example and code-generation steps [here](examples/read_bag).
                   .unwrap();
               assert_eq!(msg.data, vec![0f64, 0f64, 0f64]);
           }
-          &_ => panic!("Test fixture should only have '/chatter' and '/array'"),
+          &_ => {}
       }
   }
 
   let query = Query::new().with_topics(&["/chatter"]);
-  let count = bag.read_messages(&query).count();
+  let count = bag.read_messages(&query).unwrap().count();
   assert_eq!(count, 100);
-
-  let msg_view = bag.read_messages(&query).last().unwrap();
-  let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
-  println!("Last {} message is {}", &msg_view.topic, msg.data);
 ```
 
 ## TODO
