@@ -1,5 +1,6 @@
 use std::collections::HashSet;
 
+use crate::errors::FrostError;
 use crate::time::Time;
 use crate::{Bag, ConnectionID, IndexData, MessageDataHeader};
 
@@ -49,7 +50,7 @@ pub struct BagIter<'a> {
     current_index: usize,
 }
 impl<'a> BagIter<'a> {
-    pub(crate) fn new(bag: &'a mut Bag, query: &Query) -> Self {
+    pub(crate) fn new(bag: &'a mut Bag, query: &Query) -> Result<Self, FrostError> {
         let ids: HashSet<ConnectionID> = match &query.topics {
             Some(topics) => topics
                 .iter()
@@ -84,13 +85,13 @@ impl<'a> BagIter<'a> {
             .collect();
         index_data.sort_by(|a, b| a.time.cmp(&b.time));
 
-        bag.populate_chunk_bytes();
+        bag.populate_chunk_bytes()?;
 
-        BagIter {
+        Ok(BagIter {
             bag,
             index_data,
             current_index: 0,
-        }
+        })
     }
 }
 

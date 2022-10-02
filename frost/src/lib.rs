@@ -621,7 +621,7 @@ impl Bag {
         })
     }
 
-    pub fn read_messages(&mut self, query: &Query) -> BagIter {
+    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter, FrostError> {
         BagIter::new(self, query)
     }
 
@@ -669,25 +669,40 @@ impl Bag {
             .collect()
     }
 
-    pub(crate) fn populate_chunk_bytes(&mut self) {
+    pub(crate) fn populate_chunk_bytes(&mut self) -> Result<(), FrostError> {
         if self.chunk_bytes.len() > 0 {
-            return;
+            return Ok(());
         }
 
-        let file = File::open(&self.file_path).unwrap();
+        let file = File::open(&self.file_path)?;
         let mut reader = BufReader::new(file);
 
         //TODO: compressed bags, parallelization
         for (chunk_loc, metadata) in self.chunk_metadata.iter() {
-            let mut buf = vec![0u8; metadata.uncompressed_size as usize];
-            reader
-                .seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))
-                .expect(format!("Failed to seek to {}", metadata.chunk_data_pos).as_ref());
-            reader.read_exact(&mut buf[..]).expect(
-                format!("Failed to read chunk {} num bytes {}", chunk_loc, buf.len()).as_ref(),
-            );
-            self.chunk_bytes.insert(*chunk_loc, buf);
+            let mut buf = vec![0u8; metadata.compressed_size as usize];
+            reader.seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))?;
+            reader.read_exact(&mut buf[..])?;
+
+            match metadata.compression.as_str() {
+                "none" => {
+                    self.chunk_bytes.insert(*chunk_loc, buf);
+                }
+                "lz4" => {
+                    // TODO: figure out what are these bytes I'm removing..
+                    let decompressed = lz4_flex::decompress(
+                        &buf[11..(buf.len() - 8)],
+                        metadata.uncompressed_size as usize,
+                    )?;
+                    self.chunk_bytes.insert(*chunk_loc, decompressed);
+                }
+                _ => {
+                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                        "unsupported compression",
+                    )))
+                }
+            }
         }
+        Ok(())
     }
 
     fn version_check<R: Read + Seek>(reader: &mut R) -> Result<String, FrostError> {
@@ -842,7 +857,7 @@ impl Bag {
                     bag_header = Some(Bag::parse_bag_header(&header_buf, reader)?);
                 }
                 OpCode::ChunkHeader => {
-                    let chunk_header_pos = reader.stream_position()? - header_buf.len() as u64 - 4; // substract header and header len
+                    let chunk_header_pos = reader.stream_position()? - header_buf.len() as u64 - 4; // subtract header and header len
                     let chunk_header = Bag::parse_chunk(&header_buf, reader, chunk_header_pos)?;
                     last_chunk_header_pos = Some(chunk_header_pos);
                     chunk_headers.push(chunk_header);
@@ -958,7 +973,7 @@ mod tests {
     use crate::{field_sep_index, Bag};
 
     fn write_test_fixture() -> (TempDir, PathBuf) {
-        let bytes = include_bytes!("../tests/fixtures/test.bag");
+        let bytes = include_bytes!("../tests/fixtures/decompressed.bag");
 
         let tmp_dir = tempdir().unwrap();
         let file_path = tmp_dir.path().join("test.bag");

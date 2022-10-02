@@ -16,7 +16,7 @@ def main():
     count = args.count
 
     os.makedirs(os.path.dirname(bag_path), exist_ok=True)
-    bag = rosbag.Bag(bag_path, 'w')
+    bag = rosbag.Bag(bag_path, 'w', compression="lz4")
 
     try:
         for i in range(count):

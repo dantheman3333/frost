@@ -6,15 +6,12 @@ script_dir="${0%/*}"
 cd "${script_dir}"
 cd ../../.. # repo root
 
-FILEPATH=./frost/tests/fixtures/test.bag
-
-# if [ -f "$FILEPATH" ]; then
-#     echo "$FILEPATH exists"
-#     exit 0
-# fi
+FILEPATH=./frost/tests/fixtures/decompressed.bag
+LZ4_FILEPATH=./frost/tests/fixtures/compressed_lz4.bag
 
 source ./scripts/setup_py.sh
 PYTHON=$(get_python)
 setup_venv
 
-$PYTHON ./frost/tests/scripts/gen.py --output "$FILEPATH" --count 100
+$PYTHON ./frost/tests/scripts/gen.py --output "$FILEPATH" --count 100 
+$PYTHON ./frost/tests/scripts/gen.py --output "$LZ4_FILEPATH" --count 100 --compression lz4

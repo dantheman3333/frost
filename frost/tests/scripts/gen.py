@@ -10,13 +10,14 @@ def main():
     parser = argparse.ArgumentParser("Generate a bag")
     parser.add_argument("-o", "--output", required=True)
     parser.add_argument("-c", "--count", required=True, type=int)
+    parser.add_argument("--compression", choices=["none", "bz2", "lz4"], default="none")
     args = parser.parse_args()
 
     bag_path = args.output
     count = args.count
 
     os.makedirs(os.path.dirname(bag_path), exist_ok=True)
-    bag = rosbag.Bag(bag_path, 'w')
+    bag = rosbag.Bag(bag_path, 'w', compression=args.compression)
 
     try:
         for i in range(count):

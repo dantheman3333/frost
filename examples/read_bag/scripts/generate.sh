@@ -7,11 +7,6 @@ cd ../../../ # repo root
 
 FILEPATH=./examples/read_bag/fixtures/test.bag
 
-if [ -f "$FILEPATH" ]; then
-    echo "$FILEPATH exists"
-    exit 0
-fi
-
 source ./scripts/setup_py.sh
 PYTHON=$(get_python)
 setup_venv
