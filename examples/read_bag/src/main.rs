@@ -24,10 +24,10 @@ fn main() {
     let mut bag = Bag::from(bag_path).unwrap();
 
     let query = Query::all();
-    let count = bag.read_messages(&query).count();
+    let count = bag.read_messages(&query).unwrap().count();
     assert_eq!(count, 200);
 
-    for msg_view in bag.read_messages(&query) {
+    for msg_view in bag.read_messages(&query).unwrap() {
         match msg_view.topic {
             "/chatter" => {
                 let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
@@ -44,10 +44,10 @@ fn main() {
     }
 
     let query = Query::new().with_topics(&["/chatter"]);
-    let count = bag.read_messages(&query).count();
+    let count = bag.read_messages(&query).unwrap().count();
     assert_eq!(count, 100);
 
-    let msg_view = bag.read_messages(&query).last().unwrap();
+    let msg_view = bag.read_messages(&query).unwrap().last().unwrap();
     let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
     println!("Last {} message is {}", &msg_view.topic, msg.data);
 }

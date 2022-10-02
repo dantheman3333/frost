@@ -621,7 +621,7 @@ impl Bag {
         })
     }
 
-    pub fn read_messages(&mut self, query: &Query) -> BagIter {
+    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter, FrostError> {
         BagIter::new(self, query)
     }
 
@@ -695,7 +695,11 @@ impl Bag {
                     )?;
                     self.chunk_bytes.insert(*chunk_loc, decompressed);
                 }
-                c => panic!("unsupported compression: {}", c),
+                _ => {
+                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                        "unsupported compression",
+                    )))
+                }
             }
         }
         Ok(())

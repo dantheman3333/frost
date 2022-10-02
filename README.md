@@ -96,7 +96,8 @@ See the full example and code-generation steps [here](examples/read_bag).
 
 ## TODO
 
-- reading compressed bags as a library (`frost info/topics` command line works with compressed)
+- reading bz2-compressed bags with `read_messages`
+    - `frost info/topics` command line works with all compression modes and lz4-compressed bags works with `read_messages`
 - default values in ros msgs
 - better errors
 - a `frost echo` command
