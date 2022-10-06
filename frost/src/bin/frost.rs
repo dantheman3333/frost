@@ -21,8 +21,8 @@ fn args() -> Opts {
     let file_path = file_parser();
     let use_epoch = long("epoch").help("Print times as epoch seconds").switch();
     let info_cmd = construct!(Opts::InfoOptions {
+        use_epoch,
         file_path,
-        use_epoch
     })
     .to_options()
     .descr("Print rosbag information")
@@ -129,8 +129,8 @@ fn main() -> Result<(), FrostError> {
             print_topics(&bag);
         }
         Opts::InfoOptions {
-            file_path,
             use_epoch,
+            file_path,
         } => {
             let bag = Bag::from(file_path)?;
             print_all(&bag, use_epoch);
