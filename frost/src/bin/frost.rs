@@ -34,7 +34,7 @@ fn args() -> Opts {
         .command("topics");
 
     let parser = construct!([info_cmd, topics_cmd]);
-    parser.to_options().run()
+    parser.to_options().version(env!("CARGO_PKG_VERSION")).run()
 }
 
 fn max_type_len(bag: &Bag) -> usize {

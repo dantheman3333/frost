@@ -36,15 +36,24 @@ frost topics ./examples/read_bag/fixtures/test.bag
 
 ### Why use this over the normal `rosbag info`?
 
-The `topics` command allows you to see topics without extra noise that `info` provides, and on large bags this program is around 4x faster, with subsequent runs up to 15x faster.
+The `topics` command allows you to see topics without extra noise that `info` provides, and this program is around 4x to 15x+ faster (larger the bag, faster the speedup).
 
 
 ## Installation
 **Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
 
 ```bash
-cargo install --git https://github.com/kramer425/frost.git frost
+cargo install --all-features --git https://github.com/kramer425/frost.git frost 
 ```
+
+### Optional Build Features:
+`frost` has some optional features for the binary. If you wish to not include them, remove the `--all-features` flag for `cargo install`.  
+- color
+  - enables colors in the help menu
+  - if you build with colors enabled but wish to disable them, you can set the env var `NO_COLOR=1`
+- autocomplete
+  - allows you to run a command that will enable terminal autocompletion when pressing `tab`
+
 
 If you would like to set up `bash` auto-completion for `frost` arguments, run:
 ```bash

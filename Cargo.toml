@@ -10,7 +10,7 @@ members = [
 lto = true
 
 [workspace.dependencies]
-bpaf = {version = "0.6.0", features = ["autocomplete"] }
+bpaf = "0.7.1"
 serde = "1.0.2"
 serde_derive = "1.0.2"
 serde_rosmsg = "0.2.0"
