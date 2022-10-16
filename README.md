@@ -14,8 +14,8 @@ frost info ./examples/read_bag/fixtures/test.bag
 path:        ./examples/read_bag/fixtures/test.bag
 version:     2.0
 duration:    99s
-start:       1970-01-01 00:00:00.000001 UTC
-end:         1970-01-01 00:01:39.000100 UTC
+start:       2022-10-16 20:40:59.000001 UTC (1665952859.000001)
+end:         2022-10-16 20:42:38.000100 UTC (1665952958.000100)
 messages:    200
 compression: TODO
 types:       std_msgs/Float64MultiArray [4b7d974086d4060e7db4613a7e6c3ba4]
@@ -23,7 +23,6 @@ types:       std_msgs/Float64MultiArray [4b7d974086d4060e7db4613a7e6c3ba4]
 topics:      /array          100 msgs : std_msgs/Float64MultiArray
              /chatter        100 msgs : std_msgs/String
 ```
-To print epoch seconds instead of UTC strings, pass the `--epoch` argument. 
 
 There are more commands than the standard `rosbag info`, such as the `topics` command, which will just print the topics in the bag.
 ```bash
@@ -38,7 +37,7 @@ frost topics ./examples/read_bag/fixtures/test.bag
 
 The `topics` command allows you to see topics without extra noise that `info` provides, and this program is around 4x to 15x+ faster (larger the bag, faster the speedup).
 
-
+--------------------------------------------------------
 ## Installation
 **Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
 
@@ -52,9 +51,9 @@ cargo install --all-features --git https://github.com/kramer425/frost.git frost
   - enables colors in the help menu
   - if you build with colors enabled but wish to disable them, you can set the env var `NO_COLOR=1`
 - autocomplete
-  - allows you to run a command that will enable terminal autocompletion when pressing `tab`
+  - allows you to run a command that will enable terminal autocompletion when pressing the `tab` key
 
-
+#### Autocomplete Setup:
 If you would like to set up `bash` auto-completion for `frost` arguments, run:
 ```bash
 frost --bpaf-complete-style-bash >> ~/.bash_completion
@@ -65,6 +64,7 @@ Or, for `zsh` (untested):
 frost --bpaf-complete-style-zsh > ~/.zsh/_frost
 source ~/.zsh/_frost
 ```
+--------------------------------------------------------
 
 ## As a library
 

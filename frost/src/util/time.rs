@@ -13,7 +13,7 @@ pub const MAX: Time = Time {
 };
 pub const ZERO: Time = Time { secs: 0, nsecs: 0 };
 
-pub const NS_TO_S: f32 = 1e-9;
+pub const NS_TO_S: f64 = 1e-9;
 
 #[derive(Clone, Copy, Debug, Eq, Deserialize)]
 pub struct Time {
@@ -39,21 +39,21 @@ impl From<&Time> for Duration {
     }
 }
 
-impl From<Time> for f32 {
+impl From<Time> for f64 {
     fn from(time: Time) -> Self {
-        time.secs as f32 + (time.nsecs as f32 * NS_TO_S)
+        time.secs as f64 + (time.nsecs as f64 * NS_TO_S)
     }
 }
 
-impl From<&Time> for f32 {
+impl From<&Time> for f64 {
     fn from(time: &Time) -> Self {
-        f32::from(*time)
+        f64::from(*time)
     }
 }
 
 impl fmt::Display for Time {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", f32::from(self))
+        write!(f, "{}", f64::from(self))
     }
 }
 

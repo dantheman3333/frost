@@ -10,7 +10,7 @@ use frost::Bag;
 #[derive(Clone, Debug)]
 enum Opts {
     TopicOptions { file_path: PathBuf },
-    InfoOptions { file_path: PathBuf, use_epoch: bool },
+    InfoOptions { file_path: PathBuf },
 }
 
 fn file_parser() -> impl Parser<PathBuf> {
@@ -19,14 +19,10 @@ fn file_parser() -> impl Parser<PathBuf> {
 
 fn args() -> Opts {
     let file_path = file_parser();
-    let use_epoch = long("epoch").help("Print times as epoch seconds").switch();
-    let info_cmd = construct!(Opts::InfoOptions {
-        use_epoch,
-        file_path,
-    })
-    .to_options()
-    .descr("Print rosbag information")
-    .command("info");
+    let info_cmd = construct!(Opts::InfoOptions { file_path })
+        .to_options()
+        .descr("Print rosbag information")
+        .command("info");
     let file_path = file_parser();
     let topics_cmd = construct!(Opts::TopicOptions { file_path })
         .to_options()
@@ -59,7 +55,7 @@ fn print_topics(bag: &Bag) {
     }
 }
 
-fn print_all(bag: &Bag, use_epoch: bool) {
+fn print_all(bag: &Bag) {
     let start_time = bag.start_time().unwrap();
     let end_time = bag.end_time().unwrap();
 
@@ -67,22 +63,16 @@ fn print_all(bag: &Bag, use_epoch: bool) {
     println!("{0: <13}{1}", "version:", bag.version);
     println!("{0: <13}{1:.2}s", "duration:", bag.duration().as_secs());
     println!(
-        "{0: <13}{1}",
+        "{0: <13}{1} ({2:.6})",
         "start:",
-        if use_epoch {
-            f32::from(start_time).to_string()
-        } else {
-            start_time.as_datetime().to_string()
-        }
+        start_time.as_datetime().to_string(),
+        f64::from(start_time)
     );
     println!(
-        "{0: <13}{1}",
+        "{0: <13}{1} ({2:.6})",
         "end:",
-        if use_epoch {
-            f32::from(end_time).to_string()
-        } else {
-            end_time.as_datetime().to_string()
-        }
+        end_time.as_datetime().to_string(),
+        f64::from(end_time)
     );
     println!("{0: <13}{1}", "messages:", bag.message_count());
     println!("{0: <13}{1}", "compression:", "TODO");
@@ -128,12 +118,9 @@ fn main() -> Result<(), Error> {
             let bag = Bag::from(file_path)?;
             print_topics(&bag);
         }
-        Opts::InfoOptions {
-            use_epoch,
-            file_path,
-        } => {
+        Opts::InfoOptions { file_path } => {
             let bag = Bag::from(file_path)?;
-            print_all(&bag, use_epoch);
+            print_all(&bag);
         }
     }
 

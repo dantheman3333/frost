@@ -1,5 +1,6 @@
 import argparse
 import os
+import time
 
 import rosbag
 import rospy
@@ -18,9 +19,10 @@ def main():
     os.makedirs(os.path.dirname(bag_path), exist_ok=True)
     bag = rosbag.Bag(bag_path, 'w', compression="lz4")
 
+    current_epoch = int(time.time())
     try:
         for i in range(count):
-            t = rospy.Time(secs=i, nsecs=1000 + i*1000)
+            t = rospy.Time(secs=current_epoch+i, nsecs=1000 + i*1000)
 
             s_msg = String()
             s_msg.data = 'foo_{}'.format(i)
