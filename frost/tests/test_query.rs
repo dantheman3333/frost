@@ -1,6 +1,6 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
-use frost::errors::FrostErrorKind;
+use frost::errors::ErrorKind;
 use frost::query::Query;
 use frost::time::Time;
 use frost::{msgs::Msg, Bag};
@@ -96,7 +96,7 @@ fn msg_reading_wrong_type() {
         // Try to read a string as a Time
         let res = msg_view.instantiate::<NewTime>();
         assert!(
-            matches!(res.unwrap_err().kind(), FrostErrorKind::Deserialization(_)),
+            matches!(res.unwrap_err().kind(), ErrorKind::Deserialization(_)),
             "{name}"
         )
     }

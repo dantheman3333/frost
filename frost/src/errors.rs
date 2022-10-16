@@ -1,67 +1,68 @@
+use std::borrow::Cow;
 use std::error;
 use std::fmt;
 use std::io;
 
 #[derive(Debug)]
-pub struct FrostError {
-    kind: FrostErrorKind,
+pub struct Error {
+    kind: ErrorKind,
 }
 
-impl FrostError {
-    pub(crate) fn new(kind: FrostErrorKind) -> FrostError {
-        FrostError { kind }
+impl Error {
+    pub(crate) fn new(kind: ErrorKind) -> Error {
+        Error { kind }
     }
-    pub fn kind(&self) -> &FrostErrorKind {
+    pub fn kind(&self) -> &ErrorKind {
         &self.kind
     }
 }
 #[derive(Debug)]
-pub enum FrostErrorKind {
+pub enum ErrorKind {
     NotARosbag,
     UnindexedBag,
-    InvalidBag(&'static str),
+    InvalidBag(Cow<'static, str>),
     Deserialization(serde_rosmsg::Error),
     Decompression(lz4_flex::block::DecompressError),
     Io(io::Error),
 }
 
-impl fmt::Display for FrostError {
+impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
-            FrostErrorKind::NotARosbag => {
+            ErrorKind::NotARosbag => {
                 write!(f, "invalid rosbag v2 header")
             }
-            FrostErrorKind::Io(ref e) => e.fmt(f),
-            FrostErrorKind::UnindexedBag => write!(f, "unindexed bag"),
-            FrostErrorKind::InvalidBag(s) => write!(f, "invalid bag: {s}"),
-            FrostErrorKind::Deserialization(ref e) => e.fmt(f),
-            FrostErrorKind::Decompression(ref e) => e.fmt(f),
+            ErrorKind::Io(ref e) => e.fmt(f),
+            ErrorKind::UnindexedBag => write!(f, "unindexed bag"),
+            ErrorKind::InvalidBag(ref cow) => write!(f, "invalid bag: {cow}"),
+            ErrorKind::Deserialization(ref e) => e.fmt(f),
+            ErrorKind::Decompression(ref e) => e.fmt(f),
         }
     }
 }
 
-impl error::Error for FrostError {}
+impl error::Error for Error {}
 
-impl From<io::Error> for FrostError {
-    fn from(e: io::Error) -> FrostError {
-        FrostError {
-            kind: FrostErrorKind::Io(e),
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Error {
+        Error {
+            kind: ErrorKind::Io(e),
         }
     }
 }
 
-impl From<serde_rosmsg::Error> for FrostError {
-    fn from(e: serde_rosmsg::Error) -> FrostError {
-        FrostError {
-            kind: FrostErrorKind::Deserialization(e),
+impl From<serde_rosmsg::Error> for Error {
+    fn from(e: serde_rosmsg::Error) -> Error {
+        Error {
+            kind: ErrorKind::Deserialization(e),
         }
     }
 }
 
-impl From<lz4_flex::block::DecompressError> for FrostError {
-    fn from(e: lz4_flex::block::DecompressError) -> FrostError {
-        FrostError {
-            kind: FrostErrorKind::Decompression(e),
+impl From<lz4_flex::block::DecompressError> for Error {
+    fn from(e: lz4_flex::block::DecompressError) -> Error {
+        Error {
+            kind: ErrorKind::Decompression(e),
         }
     }
 }

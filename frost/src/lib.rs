@@ -1,14 +1,15 @@
 #![allow(dead_code)]
+use std::borrow::Cow;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
-use std::io::{self, prelude::*, BufReader, ErrorKind};
+use std::io::{self, prelude::*, BufReader};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 type ConnectionID = u32;
 type ChunkHeaderLoc = u64;
 
-use errors::{FrostError, FrostErrorKind};
+use errors::{Error, ErrorKind};
 pub use util::msgs;
 pub use util::query;
 pub use util::time;
@@ -40,7 +41,7 @@ pub enum OpCode {
 }
 
 impl OpCode {
-    fn from(byte: u8) -> Result<OpCode, FrostError> {
+    fn from(byte: u8) -> Result<OpCode, Error> {
         match byte {
             0x03 => Ok(OpCode::BagHeader),
             0x05 => Ok(OpCode::ChunkHeader),
@@ -48,9 +49,10 @@ impl OpCode {
             0x02 => Ok(OpCode::MessageData),
             0x04 => Ok(OpCode::IndexDataHeader),
             0x06 => Ok(OpCode::ChunkInfoHeader),
-            _ => Err(FrostError::new(FrostErrorKind::InvalidBag(
-                "invalid op code",
-            ))),
+            _ => Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                "invalid op code: {:x}",
+                byte
+            ))))),
         }
     }
 }
@@ -61,13 +63,15 @@ fn read_le_u32<R: Read + Seek>(reader: &mut R) -> io::Result<u32> {
     Ok(u32::from_le_bytes(len_buf))
 }
 
-fn field_sep_index(buf: &[u8]) -> Result<usize, FrostError> {
-    buf.iter()
-        .position(|&b| b == b'=')
-        .ok_or_else(|| FrostError::new(FrostErrorKind::InvalidBag("missing field separator")))
+fn field_sep_index(buf: &[u8]) -> Result<usize, Error> {
+    buf.iter().position(|&b| b == b'=').ok_or_else(|| {
+        Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
+            "missing field separator",
+        )))
+    })
 }
 
-fn parse_field(buf: &[u8], i: usize) -> Result<(usize, &[u8], &[u8]), FrostError> {
+fn parse_field(buf: &[u8], i: usize) -> Result<(usize, &[u8], &[u8]), Error> {
     let mut i = i;
     let field_len = util::parsing::parse_le_u32_at(buf, i)? as usize;
     i += 4;
@@ -88,7 +92,7 @@ struct BagHeader {
 }
 
 impl BagHeader {
-    fn from(buf: &[u8]) -> Result<BagHeader, FrostError> {
+    fn from(buf: &[u8]) -> Result<BagHeader, Error> {
         let mut i = 0;
 
         let mut index_pos = None;
@@ -106,15 +110,16 @@ impl BagHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::BagHeader as u8 {
-                        return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                             "expected BagHeader op",
-                        )));
+                        ))));
                     }
                 }
-                _ => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                        "unexpected field",
-                    )));
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unexpected field: {}",
+                        String::from_utf8_lossy(other)
+                    )))));
                 }
             }
 
@@ -125,19 +130,19 @@ impl BagHeader {
 
         Ok(BagHeader {
             index_pos: index_pos.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected index_pos in BagHeader",
-                ))
+                )))
             })?,
             conn_count: conn_count.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected conn_count in BagHeader",
-                ))
+                )))
             })?,
             chunk_count: chunk_count.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected chunk_count in BagHeader",
-                ))
+                )))
             })?,
         })
     }
@@ -172,7 +177,7 @@ impl ChunkHeader {
         chunk_header_pos: u64,
         chunk_data_pos: u64,
         compressed_size: u32,
-    ) -> Result<ChunkHeader, FrostError> {
+    ) -> Result<ChunkHeader, Error> {
         let mut i = 0;
 
         let mut compression = None;
@@ -188,15 +193,16 @@ impl ChunkHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ChunkHeader as u8 {
-                        return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                             "expected 'ChunkHeader' op",
-                        )));
+                        ))));
                     }
                 }
-                _ => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                        "unexpected field",
-                    )));
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unexpected field: {}",
+                        String::from_utf8_lossy(other)
+                    )))));
                 }
             }
 
@@ -207,14 +213,14 @@ impl ChunkHeader {
 
         Ok(ChunkHeader {
             compression: compression.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'compression' in 'ChunkHeader'",
-                ))
+                )))
             })?,
             uncompressed_size: size.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'uncompressed_size' in 'ChunkHeader'",
-                ))
+                )))
             })?,
             chunk_header_pos,
             chunk_data_pos,
@@ -235,7 +241,7 @@ struct ChunkInfoHeader {
 }
 
 impl ChunkInfoHeader {
-    fn from(buf: &[u8]) -> Result<ChunkInfoHeader, FrostError> {
+    fn from(buf: &[u8]) -> Result<ChunkInfoHeader, Error> {
         let mut i = 0;
 
         let mut version = None;
@@ -257,15 +263,16 @@ impl ChunkInfoHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ChunkInfoHeader as u8 {
-                        return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                             "expected 'ChunkInfoHeader' op",
-                        )));
+                        ))));
                     }
                 }
-                _ => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                        "unexpected field",
-                    )));
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unexpected field: {}",
+                        String::from_utf8_lossy(other)
+                    )))));
                 }
             }
 
@@ -276,29 +283,29 @@ impl ChunkInfoHeader {
 
         Ok(ChunkInfoHeader {
             version: version.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'version' in 'ChunkInfoHeader'",
-                ))
+                )))
             })?,
             chunk_header_pos: chunk_header_pos.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'chunk_header_pos' in 'ChunkInfoHeader'",
-                ))
+                )))
             })?,
             start_time: start_time.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'start_time' in 'ChunkInfoHeader'",
-                ))
+                )))
             })?,
             end_time: end_time.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'end_time' in 'ChunkInfoHeader'",
-                ))
+                )))
             })?,
             connection_count: connection_count.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'connection_count' in 'ChunkInfoHeader'",
-                ))
+                )))
             })?,
         })
     }
@@ -325,7 +332,7 @@ struct ConnectionHeader {
 }
 
 impl ConnectionHeader {
-    fn from(buf: &[u8]) -> Result<ConnectionHeader, FrostError> {
+    fn from(buf: &[u8]) -> Result<ConnectionHeader, Error> {
         let mut i = 0;
 
         let mut topic = None;
@@ -341,15 +348,16 @@ impl ConnectionHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ConnectionHeader as u8 {
-                        return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                             "expected 'ConnectionHeader' op",
-                        )));
+                        ))));
                     }
                 }
-                _ => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                        "unexpected field",
-                    )));
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unexpected field: {}",
+                        String::from_utf8_lossy(other)
+                    )))));
                 }
             }
 
@@ -360,14 +368,14 @@ impl ConnectionHeader {
 
         Ok(ConnectionHeader {
             connection_id: connection_id.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'connection_id' in 'ConnectionHeader'",
-                ))
+                )))
             })?,
             topic: topic.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'topic' in 'ConnectionHeader'",
-                ))
+                )))
             })?,
         })
     }
@@ -386,7 +394,7 @@ pub struct ConnectionData {
 }
 
 impl ConnectionData {
-    fn from(buf: &[u8], connection_id: u32, topic: String) -> Result<ConnectionData, FrostError> {
+    fn from(buf: &[u8], connection_id: u32, topic: String) -> Result<ConnectionData, Error> {
         let mut i = 0;
 
         let mut data_type = None;
@@ -408,10 +416,11 @@ impl ConnectionData {
                 }
                 b"callerid" => caller_id = Some(String::from_utf8_lossy(value).to_string()),
                 b"latching" => latching = value == b"1",
-                _ => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                        "unexpected field",
-                    )));
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unexpected field: {}",
+                        String::from_utf8_lossy(other)
+                    )))));
                 }
             }
 
@@ -424,19 +433,19 @@ impl ConnectionData {
             connection_id,
             topic,
             data_type: data_type.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'data_type' in 'ConnectionData'",
-                ))
+                )))
             })?,
             md5sum: md5sum.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'md5sum' in 'ConnectionData'",
-                ))
+                )))
             })?,
             message_definition: message_definition.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'message_definition' in 'ConnectionData'",
-                ))
+                )))
             })?,
             caller_id,
             latching,
@@ -451,7 +460,7 @@ struct IndexDataHeader {
 }
 
 impl IndexDataHeader {
-    fn from(buf: &[u8]) -> Result<IndexDataHeader, FrostError> {
+    fn from(buf: &[u8]) -> Result<IndexDataHeader, Error> {
         let mut i = 0;
 
         let mut version = None;
@@ -469,15 +478,16 @@ impl IndexDataHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::IndexDataHeader as u8 {
-                        return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                             "expected 'IndexDataHeader' op",
-                        )));
+                        ))));
                     }
                 }
-                _ => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                        "unexpected field",
-                    )));
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unexpected field: {}",
+                        String::from_utf8_lossy(other)
+                    )))));
                 }
             }
 
@@ -488,19 +498,19 @@ impl IndexDataHeader {
 
         Ok(IndexDataHeader {
             version: version.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'version' in 'IndexDataHeader'",
-                ))
+                )))
             })?,
             connection_id: connection_id.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'connection_id' in 'IndexDataHeader'",
-                ))
+                )))
             })?,
             count: count.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'count' in 'IndexDataHeader'",
-                ))
+                )))
             })?,
         })
     }
@@ -538,7 +548,7 @@ struct MessageDataHeader {
 }
 
 impl MessageDataHeader {
-    fn from(buf: &[u8]) -> Result<MessageDataHeader, FrostError> {
+    fn from(buf: &[u8]) -> Result<MessageDataHeader, Error> {
         let mut i = 0;
 
         let mut conn = None;
@@ -554,15 +564,16 @@ impl MessageDataHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::MessageData as u8 {
-                        return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                             "expected 'MessageDataHeader' op",
-                        )));
+                        ))));
                     }
                 }
-                _ => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                        "unexpected field",
-                    )));
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unexpected field: {}",
+                        String::from_utf8_lossy(other)
+                    )))));
                 }
             }
 
@@ -573,21 +584,21 @@ impl MessageDataHeader {
 
         Ok(MessageDataHeader {
             conn: conn.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'conn' in 'MessageDataHeader'",
-                ))
+                )))
             })?,
             time: time.ok_or_else(|| {
-                FrostError::new(FrostErrorKind::InvalidBag(
+                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                     "expected 'time' in 'MessageDataHeader'",
-                ))
+                )))
             })?,
         })
     }
 }
 
 impl Bag {
-    pub fn from<P>(file_path: P) -> Result<Bag, FrostError>
+    pub fn from<P>(file_path: P) -> Result<Bag, Error>
     where
         P: AsRef<Path> + Into<PathBuf>,
     {
@@ -621,7 +632,7 @@ impl Bag {
         })
     }
 
-    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter, FrostError> {
+    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter, Error> {
         BagIter::new(self, query)
     }
 
@@ -669,7 +680,7 @@ impl Bag {
             .collect()
     }
 
-    pub(crate) fn populate_chunk_bytes(&mut self) -> Result<(), FrostError> {
+    pub(crate) fn populate_chunk_bytes(&mut self) -> Result<(), Error> {
         if self.chunk_bytes.len() > 0 {
             return Ok(());
         }
@@ -695,24 +706,25 @@ impl Bag {
                     )?;
                     self.chunk_bytes.insert(*chunk_loc, decompressed);
                 }
-                _ => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                        "unsupported compression",
-                    )))
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unsupported compression: {}",
+                        other
+                    )))))
                 }
             }
         }
         Ok(())
     }
 
-    fn version_check<R: Read + Seek>(reader: &mut R) -> Result<String, FrostError> {
+    fn version_check<R: Read + Seek>(reader: &mut R) -> Result<String, Error> {
         let mut buf = [0u8; 13];
         let expected = b"#ROSBAG V2.0\n";
         reader.read_exact(&mut buf)?;
         if buf == *expected {
             Ok("2.0".into())
         } else {
-            Err(FrostError::new(FrostErrorKind::NotARosbag))
+            Err(Error::new(ErrorKind::NotARosbag))
         }
     }
 
@@ -732,11 +744,11 @@ impl Bag {
     fn parse_bag_header<R: Read + Seek>(
         header_buf: &[u8],
         reader: &mut R,
-    ) -> Result<BagHeader, FrostError> {
+    ) -> Result<BagHeader, Error> {
         let bag_header = BagHeader::from(header_buf)?;
 
         if bag_header.index_pos == 0 {
-            return Err(FrostError::new(FrostErrorKind::UnindexedBag));
+            return Err(Error::new(ErrorKind::UnindexedBag));
         }
 
         let data_len = read_le_u32(reader)?;
@@ -748,7 +760,7 @@ impl Bag {
     fn parse_connection<R: Read + Seek>(
         header_buf: &[u8],
         reader: &mut R,
-    ) -> Result<ConnectionData, FrostError> {
+    ) -> Result<ConnectionData, Error> {
         let connection_header = ConnectionHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
         ConnectionData::from(
@@ -762,7 +774,7 @@ impl Bag {
         header_buf: &[u8],
         reader: &mut R,
         chunk_header_pos: u64,
-    ) -> Result<ChunkHeader, FrostError> {
+    ) -> Result<ChunkHeader, Error> {
         let data_len = read_le_u32(reader)?;
         let chunk_data_pos = reader.stream_position()?;
 
@@ -776,7 +788,7 @@ impl Bag {
     fn parse_chunk_info<R: Read + Seek>(
         header_buf: &[u8],
         reader: &mut R,
-    ) -> Result<(ChunkInfoHeader, Vec<ChunkInfoData>), FrostError> {
+    ) -> Result<(ChunkInfoHeader, Vec<ChunkInfoData>), Error> {
         let chunk_info_header = ChunkInfoHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
 
@@ -787,9 +799,9 @@ impl Bag {
             .collect();
 
         if chunk_info_data.len() != chunk_info_header.connection_count as usize {
-            return Err(FrostError::new(FrostErrorKind::InvalidBag(
+            return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                 "missing chunk info data",
-            )));
+            ))));
         }
 
         Ok((chunk_info_header, chunk_info_data))
@@ -799,7 +811,7 @@ impl Bag {
         header_buf: &[u8],
         reader: &mut R,
         chunk_header_pos: u64,
-    ) -> Result<(ConnectionID, Vec<IndexData>), FrostError> {
+    ) -> Result<(ConnectionID, Vec<IndexData>), Error> {
         let index_data_header = IndexDataHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
 
@@ -810,9 +822,9 @@ impl Bag {
             .collect();
 
         if index_data.len() != index_data_header.count as usize {
-            return Err(FrostError::new(FrostErrorKind::InvalidBag(
+            return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                 "missing index data",
-            )));
+            ))));
         }
 
         Ok((index_data_header.connection_id, index_data))
@@ -826,7 +838,7 @@ impl Bag {
             BTreeMap<ConnectionID, ConnectionData>,
             BTreeMap<ConnectionID, Vec<IndexData>>,
         ),
-        FrostError,
+        Error,
     > {
         let mut bag_header: Option<BagHeader> = None;
         let mut chunk_headers: Vec<ChunkHeader> = Vec::new();
@@ -840,8 +852,8 @@ impl Bag {
             let maybe_header_len = read_le_u32(reader);
             if let Err(e) = maybe_header_len {
                 match e.kind() {
-                    ErrorKind::UnexpectedEof => break,
-                    _ => return Err(FrostError::new(FrostErrorKind::Io(e))),
+                    io::ErrorKind::UnexpectedEof => break,
+                    _ => return Err(Error::new(ErrorKind::Io(e))),
                 }
             }
             let header_len = maybe_header_len.unwrap();
@@ -864,9 +876,9 @@ impl Bag {
                 }
                 OpCode::IndexDataHeader => {
                     let chunk_header_pos = last_chunk_header_pos.ok_or_else(|| {
-                        FrostError::new(FrostErrorKind::InvalidBag(
+                        Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                             "Expected a Chunk before reading IndexData",
-                        ))
+                        )))
                     })?;
                     let (connection_id, mut data) =
                         Bag::parse_index(&header_buf, reader, chunk_header_pos)?;
@@ -882,29 +894,35 @@ impl Bag {
                     chunk_infos.push(Bag::parse_chunk_info(&header_buf, reader)?);
                 }
                 OpCode::MessageData => {
-                    return Err(FrostError::new(FrostErrorKind::InvalidBag(
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                         "unexpected `MessageData` op at the record level",
-                    )))
+                    ))))
                 }
             }
         }
 
         let bag_header = bag_header
-            .ok_or_else(|| FrostError::new(FrostErrorKind::InvalidBag("Missing BagHeader")))?;
+            .ok_or_else(|| Error::new(ErrorKind::InvalidBag(Cow::Borrowed("Missing BagHeader"))))?;
         if bag_header.chunk_count as usize != chunk_headers.len() {
-            return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                "missing chunks",
-            )));
+            return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                "missing chunks - expected {}, found {}",
+                bag_header.chunk_count,
+                chunk_headers.len()
+            )))));
         }
         if bag_header.chunk_count as usize != chunk_infos.len() {
-            return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                "missing chunk information headers",
-            )));
+            return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                "missing chunk information headers - expected {}, found {}",
+                bag_header.chunk_count,
+                chunk_infos.len()
+            )))));
         }
         if bag_header.conn_count as usize != connections.len() {
-            return Err(FrostError::new(FrostErrorKind::InvalidBag(
-                "missing connections",
-            )));
+            return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                "missing connections - expected {}, found {}",
+                bag_header.conn_count,
+                connections.len()
+            )))));
         }
 
         let chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata> = chunk_headers
@@ -940,7 +958,7 @@ impl Bag {
     }
 }
 
-fn read_header_op(buf: &[u8]) -> Result<OpCode, FrostError> {
+fn read_header_op(buf: &[u8]) -> Result<OpCode, Error> {
     let mut i = 0;
     loop {
         let (new_index, name, value) = parse_field(buf, i)?;
@@ -955,9 +973,9 @@ fn read_header_op(buf: &[u8]) -> Result<OpCode, FrostError> {
             break;
         }
     }
-    Err(FrostError::new(FrostErrorKind::InvalidBag(
+    Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
         "Missing header op",
-    )))
+    ))))
 }
 
 #[cfg(test)]
