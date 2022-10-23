@@ -13,9 +13,9 @@ fn setup_fixture(tmp_dir: &TempDir) -> PathBuf {
     let file_path = tmp_dir.path().join("test.bag");
 
     let mut tmp_file = File::create(&file_path).unwrap();
-    tmp_file.write(bytes).unwrap();
+    tmp_file.write_all(bytes).unwrap();
 
-    return file_path;
+    file_path
 }
 fn main() {
     let tmp_dir = tempdir().unwrap();

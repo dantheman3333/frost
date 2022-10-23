@@ -21,7 +21,7 @@ pub struct Time {
     pub nsecs: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
 pub struct RosDuration {
     pub secs: u32,
     pub nsecs: u32,

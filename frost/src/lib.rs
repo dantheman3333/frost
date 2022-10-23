@@ -658,15 +658,12 @@ impl Bag {
     }
 
     pub fn topic_message_count(&self, topic: &str) -> Option<usize> {
-        match self.topic_to_connection_ids.get(topic) {
-            Some(conn_ids) => Some(
-                conn_ids
-                    .iter()
-                    .map(|id| self.index_data.get(id).map_or_else(|| 0, |data| data.len()))
-                    .sum(),
-            ),
-            None => None,
-        }
+        self.topic_to_connection_ids.get(topic).map(|conn_ids| {
+            conn_ids
+                .iter()
+                .map(|id| self.index_data.get(id).map_or_else(|| 0, |data| data.len()))
+                .sum()
+        })
     }
 
     pub fn topics(&self) -> Vec<&String> {
@@ -681,7 +678,7 @@ impl Bag {
     }
 
     pub(crate) fn populate_chunk_bytes(&mut self) -> Result<(), Error> {
-        if self.chunk_bytes.len() > 0 {
+        if !self.chunk_bytes.is_empty() {
             return Ok(());
         }
 

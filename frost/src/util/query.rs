@@ -44,6 +44,12 @@ impl Query {
     }
 }
 
+impl Default for Query {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct BagIter<'a> {
     bag: &'a Bag,
     index_data: Vec<IndexData>,
@@ -54,21 +60,20 @@ impl<'a> BagIter<'a> {
         let ids: HashSet<ConnectionID> = match &query.topics {
             Some(topics) => topics
                 .iter()
-                .flat_map(|topic| bag.topic_to_connection_ids.get(topic).map(|v| v.clone()))
+                .flat_map(|topic| bag.topic_to_connection_ids.get(topic).cloned())
                 .flatten()
                 .collect(),
             None => bag
                 .topic_to_connection_ids
                 .values()
-                .map(|v| v.clone())
                 .flatten()
+                .cloned()
                 .collect(),
         };
 
         let mut index_data: Vec<IndexData> = ids
             .iter()
-            .map(|id| bag.index_data.get(id).unwrap().clone())
-            .flatten()
+            .flat_map(|id| bag.index_data.get(id).unwrap().clone())
             .filter(|data| {
                 if let Some(start_time) = query.start_time {
                     if data.time < start_time {
@@ -110,7 +115,7 @@ impl<'a> Iterator for BagIter<'a> {
 
             let mut pos = data.offset;
 
-            let header_len = parse_le_u32_at(&chunk_bytes, pos).unwrap() as usize;
+            let header_len = parse_le_u32_at(chunk_bytes, pos).unwrap() as usize;
             pos += 4;
             let header_start = pos;
             let header_end = header_start + header_len;
@@ -119,7 +124,7 @@ impl<'a> Iterator for BagIter<'a> {
                 .expect("Failed to read MessageDataHeader");
             pos = header_end;
 
-            let data_len = parse_le_u32_at(&chunk_bytes, pos).unwrap() as usize;
+            let data_len = parse_le_u32_at(chunk_bytes, pos).unwrap() as usize;
             // serde_rosmsg wants the data_len included, so don't pos += 4;
             let data_start = pos;
             let data_end = data_start + data_len + 4; // add extra 4 for data_len
@@ -129,7 +134,7 @@ impl<'a> Iterator for BagIter<'a> {
             Some(MessageView {
                 topic,
                 chunk_loc: data.chunk_header_pos,
-                bag: &self.bag,
+                bag: self.bag,
                 start_index: data_start,
                 end_index: data_end,
             })

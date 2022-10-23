@@ -65,19 +65,19 @@ fn print_all(bag: &Bag) {
     println!(
         "{0: <13}{1} ({2:.6})",
         "start:",
-        start_time.as_datetime().to_string(),
+        start_time.as_datetime(),
         f64::from(start_time)
     );
     println!(
         "{0: <13}{1} ({2:.6})",
         "end:",
-        end_time.as_datetime().to_string(),
+        end_time.as_datetime(),
         f64::from(end_time)
     );
     println!("{0: <13}{1}", "messages:", bag.message_count());
-    println!("{0: <13}{1}", "compression:", "TODO");
+    println!("{0: <13}TODO", "compression:");
 
-    let max_type_len = max_type_len(&bag);
+    let max_type_len = max_type_len(bag);
     for (i, (data_type, md5sum)) in bag
         .connection_data
         .values()
@@ -94,7 +94,7 @@ fn print_all(bag: &Bag) {
         );
     }
 
-    let max_topic_len = max_topic_len(&bag);
+    let max_topic_len = max_topic_len(bag);
     for (i, (topic, data_type)) in bag
         .topics_and_types()
         .into_iter()
