@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
 use bpaf::*;
@@ -49,33 +50,53 @@ fn max_topic_len(bag: &Bag) -> usize {
         .unwrap_or(0)
 }
 
-fn print_topics(bag: &Bag) {
+fn print_topics(bag: &Bag, writer: &mut impl Write) {
     for topic in bag.topics().into_iter().sorted() {
-        println!("{topic}");
+        writer.write_all(format!("{topic}\n").as_bytes()).unwrap();
     }
 }
 
-fn print_all(bag: &Bag) {
+fn print_all(bag: &Bag, writer: &mut impl Write) {
     let start_time = bag.start_time().unwrap();
     let end_time = bag.end_time().unwrap();
 
-    println!("{0: <13}{1}", "path:", bag.file_path.to_string_lossy());
-    println!("{0: <13}{1}", "version:", bag.version);
-    println!("{0: <13}{1:.2}s", "duration:", bag.duration().as_secs());
-    println!(
-        "{0: <13}{1} ({2:.6})",
-        "start:",
-        start_time.as_datetime(),
-        f64::from(start_time)
-    );
-    println!(
-        "{0: <13}{1} ({2:.6})",
-        "end:",
-        end_time.as_datetime(),
-        f64::from(end_time)
-    );
-    println!("{0: <13}{1}", "messages:", bag.message_count());
-    println!("{0: <13}TODO", "compression:");
+    writer
+        .write_all(format!("{0: <13}{1}\n", "path:", bag.file_path.to_string_lossy()).as_bytes())
+        .unwrap();
+    writer
+        .write_all(format!("{0: <13}{1}\n", "version:", bag.version).as_bytes())
+        .unwrap();
+    writer
+        .write_all(format!("{0: <13}{1:.2}s\n", "duration:", bag.duration().as_secs()).as_bytes())
+        .unwrap();
+    writer
+        .write_all(
+            format!(
+                "{0: <13}{1} ({2:.6})\n",
+                "start:",
+                start_time.as_datetime(),
+                f64::from(start_time)
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+    writer
+        .write_all(
+            format!(
+                "{0: <13}{1} ({2:.6})\n",
+                "end:",
+                end_time.as_datetime(),
+                f64::from(end_time)
+            )
+            .as_bytes(),
+        )
+        .unwrap();
+    writer
+        .write_all(format!("{0: <13}{1}\n", "messages:", bag.message_count()).as_bytes())
+        .unwrap();
+    writer
+        .write_all(format!("{0: <13}TODO\n", "compression:").as_bytes())
+        .unwrap();
 
     let max_type_len = max_type_len(bag);
     for (i, (data_type, md5sum)) in bag
@@ -88,10 +109,15 @@ fn print_all(bag: &Bag) {
         .enumerate()
     {
         let col_display = if i == 0 { "types:" } else { "" };
-        println!(
-            "{0: <13}{1: <max_type_len$} [{2}]",
-            col_display, data_type, md5sum
-        );
+        writer
+            .write_all(
+                format!(
+                    "{0: <13}{1: <max_type_len$} [{2}]\n",
+                    col_display, data_type, md5sum
+                )
+                .as_bytes(),
+            )
+            .unwrap();
     }
 
     let max_topic_len = max_topic_len(bag);
@@ -103,24 +129,33 @@ fn print_all(bag: &Bag) {
     {
         let col_display = if i == 0 { "topics:" } else { "" };
         let msg_count = bag.topic_message_count(topic).unwrap_or(0);
-        println!(
-            "{0: <13}{1: <max_topic_len$} {2:>10} msgs : {3}",
-            col_display, topic, msg_count, data_type
-        );
+        writer
+            .write_all(
+                format!(
+                    "{0: <13}{1: <max_topic_len$} {2:>10} msgs : {3}\n",
+                    col_display, topic, msg_count, data_type
+                )
+                .as_bytes(),
+            )
+            .unwrap();
     }
 }
 
 fn main() -> Result<(), Error> {
     let args = args();
 
+    let stdout = std::io::stdout();
+    let lock = stdout.lock();
+    let mut writer = BufWriter::new(lock);
+
     match args {
         Opts::TopicOptions { file_path } => {
             let bag = Bag::from(file_path)?;
-            print_topics(&bag);
+            print_topics(&bag, &mut writer);
         }
         Opts::InfoOptions { file_path } => {
             let bag = Bag::from(file_path)?;
-            print_all(&bag);
+            print_all(&bag, &mut writer)
         }
     }
 
