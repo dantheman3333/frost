@@ -43,9 +43,9 @@ fn bag_iter() {
 // these are technically the wrong types for loadig the messages (not coming from ros .msgs),
 // but we're not using codegen on the std_msgs for the lib,
 // and serde_rosmsg is able to handle the conversion
-#[derive(Clone, Debug, serde_derive::Deserialize, PartialEq)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
 struct NewString(String);
-#[derive(Clone, Debug, serde_derive::Deserialize, PartialEq)]
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
 struct NewTime(Time);
 impl Msg for NewString {}
 impl Msg for NewTime {}

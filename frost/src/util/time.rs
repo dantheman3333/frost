@@ -2,7 +2,7 @@ use std::fmt;
 use std::{io, time::Duration};
 
 use chrono::{DateTime, TimeZone, Utc};
-use serde_derive::Deserialize;
+use serde::Deserialize;
 
 use super::parsing;
 

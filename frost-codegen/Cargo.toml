@@ -9,7 +9,6 @@ edition = "2021"
 bpaf = { workspace = true }
 frost = {path = "../frost"}
 lazy_static = "1.4.0"
-serde = { workspace = true }
-serde_derive = { workspace = true }
+serde = { workspace = true , features = ["derive"]}
 serde-xml-rs = "0.6.0"
 walkdir = "2.3.2"
