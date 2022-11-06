@@ -23,11 +23,11 @@ impl<'a> MessageView<'a> {
         T: Msg,
         T: de::Deserialize<'de>,
     {
-        let bytes = self.bag.chunk_bytes.get(&self.chunk_loc).ok_or_else(|| {
-            Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
+        let Some(bytes) = self.bag.chunk_bytes.get(&self.chunk_loc) else {
+            return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
                 "Supplied chunk loc for msg view doesn't exist",
-            )))
-        })?;
+            ))))
+        };
         serde_rosmsg::from_slice(&bytes[self.start_index..self.end_index]).map_err(|e| e.into())
     }
 }
