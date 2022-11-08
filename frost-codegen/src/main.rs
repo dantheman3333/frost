@@ -10,6 +10,9 @@ use std::{
 };
 use walkdir::WalkDir;
 
+mod parsing;
+use parsing::Statement;
+
 #[macro_use]
 extern crate lazy_static;
 
@@ -68,7 +71,7 @@ fn builtin_mappings(data_type: &str) -> Option<&'static str> {
 #[derive(Debug)]
 struct RosMsg {
     name: String,
-    fields: Vec<Field>,
+    fields: Vec<Statement>,
 }
 
 impl RosMsg {
@@ -109,50 +112,7 @@ impl RosMsg {
     }
 }
 
-fn convert_line(line: &str) -> Option<Field> {
-    let line = line.trim();
 
-    if line.starts_with('#') {
-        return None;
-    }
-
-    if line.is_empty() {
-        None
-    } else {
-        let mut parts = line.split_whitespace();
-
-        let mut data_type = parts
-            .next()
-            .unwrap_or_else(|| panic!("Expected a data type in {}", &line));
-
-        let is_array = data_type.ends_with("[]");
-
-        if is_array {
-            data_type = &data_type[..data_type.len() - 2];
-        }
-
-        let data_type = builtin_mappings(data_type).unwrap_or(data_type).to_owned();
-
-        let mut name = parts
-            .next()
-            .unwrap_or_else(|| panic!("expected a name {}", &line))
-            .to_owned();
-
-        if name.contains('=') {
-            let mut name_parts = name.split('=');
-            name = name_parts.next().unwrap().to_owned();
-        } else if name.contains('\"') {
-            let mut name_parts = name.split('\"');
-            name = name_parts.next().unwrap().to_owned();
-        }
-
-        Some(Field {
-            data_type,
-            name,
-            is_array,
-        })
-    }
-}
 
 #[derive(Clone, Debug)]
 struct Opts {
