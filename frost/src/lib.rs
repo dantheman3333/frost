@@ -616,7 +616,7 @@ impl Bag {
                 .values()
                 .fold(BTreeMap::new(), |mut acc, data| {
                     acc.entry(data.topic.clone())
-                        .or_insert(Vec::new())
+                        .or_default()
                         .push(data.connection_id);
                     acc
                 });
