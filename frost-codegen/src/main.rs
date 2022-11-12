@@ -71,6 +71,7 @@ impl RosMsg {
                     .to_owned(),
             };
             buf.push_str("pub ");
+            buf.push_str("r#"); // use raw identifiers just in case
             buf.push_str(name);
             buf.push_str(": ");
             if msg_type.is_array {

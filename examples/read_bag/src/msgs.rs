@@ -4,170 +4,170 @@ pub mod msgs {
     pub mod std_msgs {
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct String {
-            pub data: std::string::String,
+            pub r#data: std::string::String,
         }
         impl frost::msgs::Msg for String {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Time {
-            pub data: frost::time::Time,
+            pub r#data: frost::time::Time,
         }
         impl frost::msgs::Msg for Time {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct UInt32MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<u32>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<u32>,
         }
         impl frost::msgs::Msg for UInt32MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct UInt16 {
-            pub data: u16,
+            pub r#data: u16,
         }
         impl frost::msgs::Msg for UInt16 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Header {
-            pub seq: u32,
-            pub stamp: frost::time::Time,
-            pub frame_id: std::string::String,
+            pub r#seq: u32,
+            pub r#stamp: frost::time::Time,
+            pub r#frame_id: std::string::String,
         }
         impl frost::msgs::Msg for Header {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Int8 {
-            pub data: i8,
+            pub r#data: i8,
         }
         impl frost::msgs::Msg for Int8 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Int64 {
-            pub data: i64,
+            pub r#data: i64,
         }
         impl frost::msgs::Msg for Int64 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Int32 {
-            pub data: i32,
+            pub r#data: i32,
         }
         impl frost::msgs::Msg for Int32 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Char {
-            pub data: char,
+            pub r#data: char,
         }
         impl frost::msgs::Msg for Char {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Byte {
-            pub data: u8,
+            pub r#data: u8,
         }
         impl frost::msgs::Msg for Byte {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Float64 {
-            pub data: f64,
+            pub r#data: f64,
         }
         impl frost::msgs::Msg for Float64 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct ColorRGBA {
-            pub r: f32,
-            pub g: f32,
-            pub b: f32,
-            pub a: f32,
+            pub r#r: f32,
+            pub r#g: f32,
+            pub r#b: f32,
+            pub r#a: f32,
         }
         impl frost::msgs::Msg for ColorRGBA {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct UInt64 {
-            pub data: u64,
+            pub r#data: u64,
         }
         impl frost::msgs::Msg for UInt64 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Int16 {
-            pub data: i16,
+            pub r#data: i16,
         }
         impl frost::msgs::Msg for Int16 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Bool {
-            pub data: bool,
+            pub r#data: bool,
         }
         impl frost::msgs::Msg for Bool {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct UInt16MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<u16>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<u16>,
         }
         impl frost::msgs::Msg for UInt16MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct UInt32 {
-            pub data: u32,
+            pub r#data: u32,
         }
         impl frost::msgs::Msg for UInt32 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Int8MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<i8>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<i8>,
         }
         impl frost::msgs::Msg for Int8MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Int16MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<i16>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<i16>,
         }
         impl frost::msgs::Msg for Int16MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct UInt64MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<u64>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<u64>,
         }
         impl frost::msgs::Msg for UInt64MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Float32MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<f32>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<f32>,
         }
         impl frost::msgs::Msg for Float32MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct ByteMultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<u8>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<u8>,
         }
         impl frost::msgs::Msg for ByteMultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct UInt8MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<u8>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<u8>,
         }
         impl frost::msgs::Msg for UInt8MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct MultiArrayLayout {
-            pub dim: Vec<MultiArrayDimension>,
-            pub data_offset: u32,
+            pub r#dim: Vec<MultiArrayDimension>,
+            pub r#data_offset: u32,
         }
         impl frost::msgs::Msg for MultiArrayLayout {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Int32MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<i32>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<i32>,
         }
         impl frost::msgs::Msg for Int32MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Int64MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<i64>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<i64>,
         }
         impl frost::msgs::Msg for Int64MultiArray {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Float32 {
-            pub data: f32,
+            pub r#data: f32,
         }
         impl frost::msgs::Msg for Float32 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Duration {
-            pub data: frost::time::RosDuration,
+            pub r#data: frost::time::RosDuration,
         }
         impl frost::msgs::Msg for Duration {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct MultiArrayDimension {
-            pub label: std::string::String,
-            pub size: u32,
-            pub stride: u32,
+            pub r#label: std::string::String,
+            pub r#size: u32,
+            pub r#stride: u32,
         }
         impl frost::msgs::Msg for MultiArrayDimension {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct UInt8 {
-            pub data: u8,
+            pub r#data: u8,
         }
         impl frost::msgs::Msg for UInt8 {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
@@ -175,8 +175,8 @@ pub mod msgs {
         impl frost::msgs::Msg for Empty {}
         #[derive(Clone, Debug, serde::Deserialize, PartialEq)]
         pub struct Float64MultiArray {
-            pub layout: MultiArrayLayout,
-            pub data: Vec<f64>,
+            pub r#layout: MultiArrayLayout,
+            pub r#data: Vec<f64>,
         }
         impl frost::msgs::Msg for Float64MultiArray {}
     }
