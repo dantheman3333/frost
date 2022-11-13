@@ -103,20 +103,31 @@ mod tests {
         #another comment 
         time start#comment
         # comment comment
-
+        uint32 world3
         "#;
 
         let actual = parse(text).unwrap();
 
-        let expected = vec![Statement::Field {
-            msg_type: Type {
-                package_name: None,
-                name: "time".into(),
-                is_array: false,
-                array_size: None,
+        let expected = vec![
+            Statement::Field {
+                msg_type: Type {
+                    package_name: None,
+                    name: "time".into(),
+                    is_array: false,
+                    array_size: None,
+                },
+                name: "start".into(),
             },
-            name: "start".into(),
-        }];
+            Statement::Field {
+                msg_type: Type {
+                    package_name: None,
+                    name: "uint32".into(),
+                    is_array: false,
+                    array_size: None,
+                },
+                name: "world3".into(),
+            },
+        ];
 
         assert_eq!(expected, actual)
     }

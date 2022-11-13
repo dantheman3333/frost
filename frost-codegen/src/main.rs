@@ -183,13 +183,12 @@ fn get_mods_and_msgs(
     let mut msgs = Vec::<(PathBuf, RosMsg)>::new();
 
     for entry in WalkDir::new(input_path).into_iter() {
-        let entry = match entry {
-            Ok(entry) => entry,
-            Err(_) => continue,
+        let Ok(entry) = entry else {
+            continue;
         };
-        let metadata = match entry.metadata() {
-            Ok(data) => data,
-            Err(_) => continue,
+
+        let Ok(metadata) = entry.metadata() else {
+            continue;
         };
 
         if !metadata.is_file() {
@@ -198,9 +197,9 @@ fn get_mods_and_msgs(
 
         let abs_path = entry.into_path().canonicalize().unwrap();
 
-        if abs_path.extension().is_none() {
+        let Some(extension) = abs_path.extension() else {
             continue;
-        }
+        };
 
         if abs_path.file_name().unwrap() == "package.xml" {
             let Ok(package_name) = get_package_name(&abs_path) else {
@@ -210,7 +209,7 @@ fn get_mods_and_msgs(
                 abs_path.parent().unwrap().to_string_lossy().into_owned(),
                 package_name,
             );
-        } else if abs_path.extension().unwrap() == "msg" {
+        } else if extension == "msg" {
             let msg = RosMsg::new(&abs_path)?;
             msgs.push((abs_path, msg));
         }
