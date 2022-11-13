@@ -57,7 +57,7 @@ impl OpCode {
     }
 }
 
-fn read_le_u32<R: Read + Seek>(reader: &mut R) -> io::Result<u32> {
+fn read_le_u32(reader: &mut impl Read) -> io::Result<u32> {
     let mut len_buf = [0u8; 4];
     reader.read_exact(&mut len_buf)?;
     Ok(u32::from_le_bytes(len_buf))
@@ -714,7 +714,7 @@ impl Bag {
         Ok(())
     }
 
-    fn version_check<R: Read + Seek>(reader: &mut R) -> Result<String, Error> {
+    fn version_check(reader: &mut impl Read) -> Result<String, Error> {
         let mut buf = [0u8; 13];
         let expected = b"#ROSBAG V2.0\n";
         reader.read_exact(&mut buf)?;
@@ -725,7 +725,7 @@ impl Bag {
         }
     }
 
-    fn get_lengthed_bytes<R: Read + Seek>(reader: &mut R) -> io::Result<Vec<u8>> {
+    fn get_lengthed_bytes(reader: &mut impl Read) -> io::Result<Vec<u8>> {
         // Get a vector of bytes from a reader when the first 4 bytes are the length
         // Ex: with <header_len><header> or <data_len><data>, this function returns either header or data
         let mut len_buf = [0u8; 4];
@@ -754,9 +754,9 @@ impl Bag {
         Ok(bag_header)
     }
 
-    fn parse_connection<R: Read + Seek>(
+    fn parse_connection(
         header_buf: &[u8],
-        reader: &mut R,
+        reader: &mut impl Read,
     ) -> Result<ConnectionData, Error> {
         let connection_header = ConnectionHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
@@ -782,9 +782,9 @@ impl Bag {
         Ok(chunk_header)
     }
 
-    fn parse_chunk_info<R: Read + Seek>(
+    fn parse_chunk_info(
         header_buf: &[u8],
-        reader: &mut R,
+        reader: &mut impl Read,
     ) -> Result<(ChunkInfoHeader, Vec<ChunkInfoData>), Error> {
         let chunk_info_header = ChunkInfoHeader::from(header_buf)?;
         let data = Bag::get_lengthed_bytes(reader)?;
@@ -804,9 +804,9 @@ impl Bag {
         Ok((chunk_info_header, chunk_info_data))
     }
 
-    fn parse_index<R: Read + Seek>(
+    fn parse_index(
         header_buf: &[u8],
-        reader: &mut R,
+        reader: &mut impl Read,
         chunk_header_pos: u64,
     ) -> Result<(ConnectionID, Vec<IndexData>), Error> {
         let index_data_header = IndexDataHeader::from(header_buf)?;
