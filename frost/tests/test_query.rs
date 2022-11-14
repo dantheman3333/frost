@@ -20,7 +20,7 @@ fn write_test_fixture(bytes: &[u8]) -> (TempDir, PathBuf) {
 }
 
 #[test]
-fn bag_iter() {
+fn bag_iter_from_file() {
     for (bytes, name) in [
         (DECOMPRESSED, "decompressed"),
         (COMPRESSED_LZ4, "compressed_lz4"),
@@ -29,6 +29,26 @@ fn bag_iter() {
     {
         let (_tmp_dir, file_path) = write_test_fixture(*bytes);
         let mut bag = Bag::from(file_path).unwrap();
+
+        let query = Query::all();
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 200, "{name}");
+
+        let query = Query::new().with_topics(&vec!["/chatter"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 100, "{name}");
+    }
+}
+
+#[test]
+fn bag_iter_from_bytes() {
+    for (bytes, name) in [
+        (DECOMPRESSED, "decompressed"),
+        (COMPRESSED_LZ4, "compressed_lz4"),
+    ]
+    .iter()
+    {
+        let mut bag = Bag::from_bytes(bytes).unwrap();
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();
@@ -58,8 +78,7 @@ fn msg_reading() {
     ]
     .iter()
     {
-        let (_tmp_dir, file_path) = write_test_fixture(bytes);
-        let mut bag = Bag::from(file_path).unwrap();
+        let mut bag = Bag::from_bytes(bytes).unwrap();
 
         let query = Query::new().with_topics(&["/chatter"]);
 
@@ -87,8 +106,7 @@ fn msg_reading_wrong_type() {
     ]
     .iter()
     {
-        let (_tmp_dir, file_path) = write_test_fixture(bytes);
-        let mut bag = Bag::from(file_path).unwrap();
+        let mut bag = Bag::from_bytes(bytes).unwrap();
 
         let query = Query::new().with_topics(&["/chatter"]);
         let msg_view = bag.read_messages(&query).unwrap().last().unwrap();

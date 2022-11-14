@@ -2,7 +2,7 @@
 use std::borrow::Cow;
 use std::collections::{BTreeMap, HashSet};
 use std::fs::File;
-use std::io::{self, prelude::*, BufReader};
+use std::io::{self, prelude::*, BufReader, Cursor};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -11,6 +11,7 @@ type ChunkHeaderLoc = u64;
 
 use errors::{Error, ErrorKind};
 pub use util::msgs;
+use util::parsing::get_lengthed_bytes;
 pub use util::query;
 pub use util::time;
 
@@ -19,8 +20,9 @@ mod util;
 use util::query::{BagIter, Query};
 use util::time::Time;
 
-pub struct Bag {
-    pub file_path: PathBuf,
+pub struct Bag<R: Read + Seek> {
+    pub file_path: Option<PathBuf>,
+    reader: R,
     pub version: String,
     pub(crate) chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
     pub(crate) chunk_bytes: BTreeMap<ChunkHeaderLoc, Vec<u8>>,
@@ -82,6 +84,17 @@ fn parse_field(buf: &[u8], i: usize) -> Result<(usize, &[u8], &[u8]), Error> {
 
     i += field_len;
     Ok((i, name, value))
+}
+
+fn version_check(reader: &mut impl Read) -> Result<String, Error> {
+    let mut buf = [0u8; 13];
+    let expected = b"#ROSBAG V2.0\n";
+    reader.read_exact(&mut buf)?;
+    if buf == *expected {
+        Ok("2.0".into())
+    } else {
+        Err(Error::new(ErrorKind::NotARosbag))
+    }
 }
 
 #[derive(Debug)]
@@ -597,17 +610,33 @@ impl MessageDataHeader {
     }
 }
 
-impl Bag {
-    pub fn from<P>(file_path: P) -> Result<Bag, Error>
+impl Bag<BufReader<File>> {
+    pub fn from<P>(file_path: P) -> Result<Self, Error>
     where
         P: AsRef<Path> + Into<PathBuf>,
     {
-        let path = file_path.as_ref().into();
+        let path: PathBuf = file_path.as_ref().into();
         let file = File::open(file_path)?;
 
-        let mut reader = BufReader::new(file);
+        let reader = BufReader::new(file);
 
-        let version = Bag::version_check(&mut reader)?;
+        let mut bag = Self::from_reader(reader)?;
+        bag.file_path = Some(path);
+        Ok(bag)
+    }
+}
+
+impl<'a> Bag<Cursor<&'a [u8]>> {
+    pub fn from_bytes(bytes: &'a [u8]) -> Result<Self, Error> {
+        let reader = Cursor::new(bytes);
+        let bag = Self::from_reader(reader)?;
+        Ok(bag)
+    }
+}
+
+impl<R: Read + Seek> Bag<R> {
+    fn from_reader(mut reader: R) -> Result<Bag<R>, Error> {
+        let version = version_check(&mut reader)?;
 
         let (chunk_metadata, connection_data, index_data) = Bag::parse_records(&mut reader)?;
 
@@ -623,7 +652,8 @@ impl Bag {
 
         Ok(Bag {
             version,
-            file_path: path,
+            file_path: None,
+            reader,
             chunk_metadata,
             chunk_bytes: BTreeMap::new(),
             connection_data,
@@ -632,7 +662,7 @@ impl Bag {
         })
     }
 
-    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter, Error> {
+    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter<R>, Error> {
         BagIter::new(self, query)
     }
 
@@ -682,14 +712,12 @@ impl Bag {
             return Ok(());
         }
 
-        let file = File::open(&self.file_path)?;
-        let mut reader = BufReader::new(file);
-
         //TODO: compressed bags, parallelization
         for (chunk_loc, metadata) in self.chunk_metadata.iter() {
             let mut buf = vec![0u8; metadata.compressed_size as usize];
-            reader.seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))?;
-            reader.read_exact(&mut buf[..])?;
+            self.reader
+                .seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))?;
+            self.reader.read_exact(&mut buf[..])?;
 
             match metadata.compression.as_str() {
                 "none" => {
@@ -714,34 +742,7 @@ impl Bag {
         Ok(())
     }
 
-    fn version_check(reader: &mut impl Read) -> Result<String, Error> {
-        let mut buf = [0u8; 13];
-        let expected = b"#ROSBAG V2.0\n";
-        reader.read_exact(&mut buf)?;
-        if buf == *expected {
-            Ok("2.0".into())
-        } else {
-            Err(Error::new(ErrorKind::NotARosbag))
-        }
-    }
-
-    fn get_lengthed_bytes(reader: &mut impl Read) -> io::Result<Vec<u8>> {
-        // Get a vector of bytes from a reader when the first 4 bytes are the length
-        // Ex: with <header_len><header> or <data_len><data>, this function returns either header or data
-        let mut len_buf = [0u8; 4];
-        reader.read_exact(&mut len_buf)?;
-
-        let len = u32::from_le_bytes(len_buf);
-        let mut bytes = vec![0u8; len as usize];
-        reader.read_exact(&mut bytes)?;
-
-        Ok(bytes)
-    }
-
-    fn parse_bag_header<R: Read + Seek>(
-        header_buf: &[u8],
-        reader: &mut R,
-    ) -> Result<BagHeader, Error> {
+    fn parse_bag_header(header_buf: &[u8], reader: &mut R) -> Result<BagHeader, Error> {
         let bag_header = BagHeader::from(header_buf)?;
 
         if bag_header.index_pos == 0 {
@@ -754,12 +755,9 @@ impl Bag {
         Ok(bag_header)
     }
 
-    fn parse_connection(
-        header_buf: &[u8],
-        reader: &mut impl Read,
-    ) -> Result<ConnectionData, Error> {
+    fn parse_connection(header_buf: &[u8], reader: &mut R) -> Result<ConnectionData, Error> {
         let connection_header = ConnectionHeader::from(header_buf)?;
-        let data = Bag::get_lengthed_bytes(reader)?;
+        let data = get_lengthed_bytes(reader)?;
         ConnectionData::from(
             &data,
             connection_header.connection_id,
@@ -767,7 +765,7 @@ impl Bag {
         )
     }
 
-    fn parse_chunk<R: Read + Seek>(
+    fn parse_chunk(
         header_buf: &[u8],
         reader: &mut R,
         chunk_header_pos: u64,
@@ -784,10 +782,10 @@ impl Bag {
 
     fn parse_chunk_info(
         header_buf: &[u8],
-        reader: &mut impl Read,
+        reader: &mut R,
     ) -> Result<(ChunkInfoHeader, Vec<ChunkInfoData>), Error> {
         let chunk_info_header = ChunkInfoHeader::from(header_buf)?;
-        let data = Bag::get_lengthed_bytes(reader)?;
+        let data = get_lengthed_bytes(reader)?;
 
         let chunk_info_data: Vec<ChunkInfoData> = data
             .windows(8)
@@ -806,11 +804,11 @@ impl Bag {
 
     fn parse_index(
         header_buf: &[u8],
-        reader: &mut impl Read,
+        reader: &mut R,
         chunk_header_pos: u64,
     ) -> Result<(ConnectionID, Vec<IndexData>), Error> {
         let index_data_header = IndexDataHeader::from(header_buf)?;
-        let data = Bag::get_lengthed_bytes(reader)?;
+        let data = get_lengthed_bytes(reader)?;
 
         let index_data: Vec<IndexData> = data
             .windows(12)
@@ -827,7 +825,7 @@ impl Bag {
         Ok((index_data_header.connection_id, index_data))
     }
 
-    fn parse_records<R: Read + Seek>(
+    fn parse_records(
         reader: &mut R,
     ) -> Result<
         (
@@ -977,39 +975,16 @@ fn read_header_op(buf: &[u8]) -> Result<OpCode, Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs::File,
-        io::{BufReader, Write},
-        path::PathBuf,
-    };
+    use std::io::Cursor;
 
-    use tempfile::{tempdir, TempDir};
+    use crate::{field_sep_index, version_check};
 
-    use crate::{field_sep_index, Bag};
-
-    fn write_test_fixture() -> (TempDir, PathBuf) {
-        let bytes = include_bytes!("../tests/fixtures/decompressed.bag");
-
-        let tmp_dir = tempdir().unwrap();
-        let file_path = tmp_dir.path().join("test.bag");
-        {
-            let mut tmp_file = File::create(file_path.clone()).unwrap();
-            tmp_file.write(bytes).unwrap();
-        }
-        (tmp_dir, file_path)
-    }
-    #[test]
-    fn version_check() {
-        let (_tmp_dir, file_path) = write_test_fixture();
-        let file = File::open(file_path).unwrap();
-        let mut reader = BufReader::new(file);
-        assert!(Bag::version_check(&mut reader).is_ok())
-    }
+    const DECOMPRESSED: &[u8] = include_bytes!("../tests/fixtures/decompressed.bag");
 
     #[test]
-    fn bag_from() {
-        let (_tmp_dir, file_path) = write_test_fixture();
-        Bag::from(file_path).unwrap();
+    fn test_version_check() {
+        let mut reader = Cursor::new(DECOMPRESSED);
+        assert!(version_check(&mut reader).is_ok())
     }
 
     #[test]

@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::io::{Read, Seek};
 
 use crate::errors::Error;
 use crate::time::Time;
@@ -50,13 +51,13 @@ impl Default for Query {
     }
 }
 
-pub struct BagIter<'a> {
-    bag: &'a Bag,
+pub struct BagIter<'a, R: Read + Seek> {
+    bag: &'a Bag<R>,
     index_data: Vec<IndexData>,
     current_index: usize,
 }
-impl<'a> BagIter<'a> {
-    pub(crate) fn new(bag: &'a mut Bag, query: &Query) -> Result<Self, Error> {
+impl<'a, R: Read + Seek> BagIter<'a, R> {
+    pub(crate) fn new(bag: &'a mut Bag<R>, query: &Query) -> Result<Self, Error> {
         let ids: HashSet<ConnectionID> = match &query.topics {
             Some(topics) => topics
                 .iter()
@@ -100,8 +101,8 @@ impl<'a> BagIter<'a> {
     }
 }
 
-impl<'a> Iterator for BagIter<'a> {
-    type Item = MessageView<'a>;
+impl<'a, R: Read + Seek> Iterator for BagIter<'a, R> {
+    type Item = MessageView<'a, R>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_index >= self.index_data.len() {

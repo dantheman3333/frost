@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::io::{BufWriter, Write};
+use std::io::{BufWriter, Read, Seek, Write};
 use std::path::PathBuf;
 
 use bpaf::*;
@@ -34,7 +34,7 @@ fn args() -> Opts {
     parser.to_options().version(env!("CARGO_PKG_VERSION")).run()
 }
 
-fn max_type_len(bag: &Bag) -> usize {
+fn max_type_len(bag: &Bag<impl Read + Seek>) -> usize {
     bag.connection_data
         .values()
         .map(|d| d.data_type.len())
@@ -42,7 +42,7 @@ fn max_type_len(bag: &Bag) -> usize {
         .unwrap_or(0)
 }
 
-fn max_topic_len(bag: &Bag) -> usize {
+fn max_topic_len(bag: &Bag<impl Read + Seek>) -> usize {
     bag.connection_data
         .values()
         .map(|d| d.topic.len())
@@ -50,19 +50,27 @@ fn max_topic_len(bag: &Bag) -> usize {
         .unwrap_or(0)
 }
 
-fn print_topics(bag: &Bag, writer: &mut impl Write) -> Result<(), Error> {
+fn print_topics(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
     for topic in bag.topics().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
     Ok(())
 }
 
-fn print_all(bag: &Bag, writer: &mut impl Write) -> Result<(), Error> {
+fn print_all(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
     let start_time = bag.start_time().expect("Bag does not have a start time");
     let end_time = bag.end_time().expect("Bag does not have a end time");
 
-    writer
-        .write_all(format!("{0: <13}{1}\n", "path:", bag.file_path.to_string_lossy()).as_bytes())?;
+    writer.write_all(
+        format!(
+            "{0: <13}{1}\n",
+            "path:",
+            bag.file_path
+                .as_ref()
+                .map_or_else(|| "None".to_string(), |p| p.to_string_lossy().into_owned())
+        )
+        .as_bytes(),
+    )?;
     writer.write_all(format!("{0: <13}{1}\n", "version:", bag.version).as_bytes())?;
     writer.write_all(
         format!("{0: <13}{1:.2}s\n", "duration:", bag.duration().as_secs()).as_bytes(),

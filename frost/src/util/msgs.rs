@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::io::{Read, Seek};
 
 use serde;
 use serde::de;
@@ -9,15 +10,15 @@ use crate::{Bag, ChunkHeaderLoc};
 
 pub trait Msg {}
 
-pub struct MessageView<'a> {
+pub struct MessageView<'a, R: Read + Seek> {
     pub topic: &'a str,
-    pub(crate) bag: &'a Bag,
+    pub(crate) bag: &'a Bag<R>,
     pub(crate) chunk_loc: ChunkHeaderLoc,
     pub(crate) start_index: usize,
     pub(crate) end_index: usize,
 }
 
-impl<'a> MessageView<'a> {
+impl<'a, R: Read + Seek> MessageView<'a, R> {
     pub fn instantiate<'de, T>(&self) -> Result<T, Error>
     where
         T: Msg,
