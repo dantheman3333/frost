@@ -50,53 +50,43 @@ fn max_topic_len(bag: &Bag) -> usize {
         .unwrap_or(0)
 }
 
-fn print_topics(bag: &Bag, writer: &mut impl Write) {
+fn print_topics(bag: &Bag, writer: &mut impl Write) -> Result<(), Error> {
     for topic in bag.topics().into_iter().sorted() {
-        writer.write_all(format!("{topic}\n").as_bytes()).unwrap();
+        writer.write_all(format!("{topic}\n").as_bytes())?
     }
+    Ok(())
 }
 
-fn print_all(bag: &Bag, writer: &mut impl Write) {
-    let start_time = bag.start_time().unwrap();
-    let end_time = bag.end_time().unwrap();
+fn print_all(bag: &Bag, writer: &mut impl Write) -> Result<(), Error> {
+    let start_time = bag.start_time().expect("Bag does not have a start time");
+    let end_time = bag.end_time().expect("Bag does not have a end time");
 
     writer
-        .write_all(format!("{0: <13}{1}\n", "path:", bag.file_path.to_string_lossy()).as_bytes())
-        .unwrap();
-    writer
-        .write_all(format!("{0: <13}{1}\n", "version:", bag.version).as_bytes())
-        .unwrap();
-    writer
-        .write_all(format!("{0: <13}{1:.2}s\n", "duration:", bag.duration().as_secs()).as_bytes())
-        .unwrap();
-    writer
-        .write_all(
-            format!(
-                "{0: <13}{1} ({2:.6})\n",
-                "start:",
-                start_time.as_datetime(),
-                f64::from(start_time)
-            )
-            .as_bytes(),
+        .write_all(format!("{0: <13}{1}\n", "path:", bag.file_path.to_string_lossy()).as_bytes())?;
+    writer.write_all(format!("{0: <13}{1}\n", "version:", bag.version).as_bytes())?;
+    writer.write_all(
+        format!("{0: <13}{1:.2}s\n", "duration:", bag.duration().as_secs()).as_bytes(),
+    )?;
+    writer.write_all(
+        format!(
+            "{0: <13}{1} ({2:.6})\n",
+            "start:",
+            start_time.as_datetime(),
+            f64::from(start_time)
         )
-        .unwrap();
-    writer
-        .write_all(
-            format!(
-                "{0: <13}{1} ({2:.6})\n",
-                "end:",
-                end_time.as_datetime(),
-                f64::from(end_time)
-            )
-            .as_bytes(),
+        .as_bytes(),
+    )?;
+    writer.write_all(
+        format!(
+            "{0: <13}{1} ({2:.6})\n",
+            "end:",
+            end_time.as_datetime(),
+            f64::from(end_time)
         )
-        .unwrap();
-    writer
-        .write_all(format!("{0: <13}{1}\n", "messages:", bag.message_count()).as_bytes())
-        .unwrap();
-    writer
-        .write_all(format!("{0: <13}TODO\n", "compression:").as_bytes())
-        .unwrap();
+        .as_bytes(),
+    )?;
+    writer.write_all(format!("{0: <13}{1}\n", "messages:", bag.message_count()).as_bytes())?;
+    writer.write_all(format!("{0: <13}TODO\n", "compression:").as_bytes())?;
 
     let max_type_len = max_type_len(bag);
     for (i, (data_type, md5sum)) in bag
@@ -109,15 +99,13 @@ fn print_all(bag: &Bag, writer: &mut impl Write) {
         .enumerate()
     {
         let col_display = if i == 0 { "types:" } else { "" };
-        writer
-            .write_all(
-                format!(
-                    "{0: <13}{1: <max_type_len$} [{2}]\n",
-                    col_display, data_type, md5sum
-                )
-                .as_bytes(),
+        writer.write_all(
+            format!(
+                "{0: <13}{1: <max_type_len$} [{2}]\n",
+                col_display, data_type, md5sum
             )
-            .unwrap();
+            .as_bytes(),
+        )?;
     }
 
     let max_topic_len = max_topic_len(bag);
@@ -129,16 +117,15 @@ fn print_all(bag: &Bag, writer: &mut impl Write) {
     {
         let col_display = if i == 0 { "topics:" } else { "" };
         let msg_count = bag.topic_message_count(topic).unwrap_or(0);
-        writer
-            .write_all(
-                format!(
-                    "{0: <13}{1: <max_topic_len$} {2:>10} msgs : {3}\n",
-                    col_display, topic, msg_count, data_type
-                )
-                .as_bytes(),
+        writer.write_all(
+            format!(
+                "{0: <13}{1: <max_topic_len$} {2:>10} msgs : {3}\n",
+                col_display, topic, msg_count, data_type
             )
-            .unwrap();
+            .as_bytes(),
+        )?;
     }
+    Ok(())
 }
 
 fn main() -> Result<(), Error> {
@@ -151,13 +138,11 @@ fn main() -> Result<(), Error> {
     match args {
         Opts::TopicOptions { file_path } => {
             let bag = Bag::from(file_path)?;
-            print_topics(&bag, &mut writer);
+            print_topics(&bag, &mut writer)
         }
         Opts::InfoOptions { file_path } => {
             let bag = Bag::from(file_path)?;
             print_all(&bag, &mut writer)
         }
     }
-
-    Ok(())
 }
