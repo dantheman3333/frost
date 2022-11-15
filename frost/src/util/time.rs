@@ -2,7 +2,6 @@ use std::fmt;
 use std::{io, time::Duration};
 
 use chrono::{DateTime, TimeZone, Utc};
-use serde::Deserialize;
 
 use super::parsing;
 
@@ -15,13 +14,13 @@ pub const ZERO: Time = Time { secs: 0, nsecs: 0 };
 
 pub const NS_TO_S: f64 = 1e-9;
 
-#[derive(Clone, Copy, Debug, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, Eq, serde::Deserialize)]
 pub struct Time {
     pub secs: u32,
     pub nsecs: u32,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, serde::Deserialize)]
 pub struct RosDuration {
     pub secs: u32,
     pub nsecs: u32,
