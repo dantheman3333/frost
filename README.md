@@ -50,8 +50,6 @@ cargo install --all-features --git https://github.com/kramer425/frost.git frost
 - color
   - enables colors in the help menu
   - if you build with colors enabled but wish to disable them, you can set the env var `NO_COLOR=1`
-- autocomplete
-  - allows you to run a command that will enable terminal autocompletion when pressing the `tab` key
 
 #### Autocomplete Setup:
 If you would like to set up `bash` auto-completion for `frost` arguments, run:

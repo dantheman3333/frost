@@ -10,7 +10,7 @@ members = [
 lto = true
 
 [workspace.dependencies]
-bpaf = "0.7.1"
+bpaf = "0.7.3"
 serde = "1.0.2"
 serde_rosmsg = "0.2.0"
 tempfile = "3.3.0"

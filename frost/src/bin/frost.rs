@@ -15,7 +15,7 @@ enum Opts {
 }
 
 fn file_parser() -> impl Parser<PathBuf> {
-    positional::<PathBuf>("FILE")
+    positional::<PathBuf>("FILE").complete_shell(ShellComp::File { mask: None })
 }
 
 fn args() -> Opts {
