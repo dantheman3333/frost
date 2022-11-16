@@ -47,11 +47,15 @@ The `topics` and `types` commands allow you to see the information you need with
 
 --------------------------------------------------------
 ## Installation
-- Download the binary from the [Releases](https://github.com/kramer425/frost/releases/) page.
-- Open a terminal in your downloads folder
-- `mv frost-x86_64-unknown-linux-gnu frost`
-- `chmod +x frost`
-- `sudo mv frost /usr/local/bin` or anywhere else
+- Copy the binary URL from the [Releases](https://github.com/kramer425/frost/releases/) page.
+- In a terminal:
+```bash
+wget <URL> -O frost
+chmod +x frost
+sudo mv frost /usr/local/bin # or elsewhere
+frost --version # double check it's in your path
+```
+
 
 ### Building from source
 **Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
@@ -60,7 +64,7 @@ The `topics` and `types` commands allow you to see the information you need with
 cargo install --all-features --git https://github.com/kramer425/frost.git frost 
 ```
 
-### Optional Build Features:
+#### Optional Build Features:
 `frost` has some optional features for the binary. If you wish to not include them, remove the `--all-features` flag for `cargo install`.  
 - color
   - enables colors in the help menu
