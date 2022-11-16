@@ -8,27 +8,6 @@ on:
 name: Check and Lint
 
 jobs:
-  windows:
-    runs-on: windows-latest
-    name: Check windows
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --workspace --all-targets
-
-      - uses: actions-rs/cargo@v1
-        name: all features
-        with:
-          command: test
-          args: --workspace --all-targets --all-features
-
   check:
     name: Check linux
     runs-on: ubuntu-latest
