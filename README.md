@@ -24,7 +24,7 @@ topics:      /array          100 msgs : std_msgs/Float64MultiArray
              /chatter        100 msgs : std_msgs/String
 ```
 
-There are more commands than the standard `rosbag info`, such as the `topics` command, which will just print the topics in the bag.
+There are more commands than the standard `rosbag info`, such as the `topics` command, which will just print the topics in the bag:
 ```bash
 frost topics ./examples/read_bag/fixtures/test.bag
 ```
@@ -32,10 +32,18 @@ frost topics ./examples/read_bag/fixtures/test.bag
 /array
 /chatter
 ```
+And, the `types` command:
+```bash
+frost types ./examples/read_bag/fixtures/test.bag
+```
+```bash
+std_msgs/Float64MultiArray
+std_msgs/String
+```
 
 ### Why use this over the normal `rosbag info`?
 
-The `topics` command allows you to see topics without extra noise that `info` provides, and this program is around 4x to 15x+ faster (larger the bag, faster the speedup).
+The `topics` and `types` commands allow you to see the information you need without extra noise that `info` provides, and this program is around 4x to 15x+ faster (larger the bag, faster the speedup).
 
 --------------------------------------------------------
 ## Installation
