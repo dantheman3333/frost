@@ -39,6 +39,13 @@ The `topics` command allows you to see topics without extra noise that `info` pr
 
 --------------------------------------------------------
 ## Installation
+- Download the binary from the [Releases](https://github.com/kramer425/frost/releases/) page.
+- Open a terminal in your downloads folder
+- `mv frost-x86_64-unknown-linux-gnu frost`
+- `chmod +x frost`
+- `sudo mv frost /user/local/bin` or anywhere else
+
+### Building from source
 **Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
 
 ```bash
