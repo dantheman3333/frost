@@ -1,9 +1,6 @@
-name: Build
+on: push
 
-on:
-  push:
-    tags:
-    - 'v[0-9]+.[0-9]+.[0-9]+'
+name: Build
 
 jobs:
   build:
@@ -11,7 +8,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v1
+      - uses: actions/checkout@v2
 
       - name: Install latest rust toolchain
         uses: actions-rs/toolchain@v1
