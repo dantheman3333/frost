@@ -707,6 +707,13 @@ impl<R: Read + Seek> Bag<R> {
             .collect()
     }
 
+    pub fn types(&self) -> HashSet<&str> {
+        self.connection_data
+            .values()
+            .map(|data| data.data_type.as_str())
+            .collect()
+    }
+
     pub(crate) fn populate_chunk_bytes(&mut self) -> Result<(), Error> {
         if !self.chunk_bytes.is_empty() {
             return Ok(());

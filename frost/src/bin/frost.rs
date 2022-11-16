@@ -11,6 +11,7 @@ use frost::Bag;
 #[derive(Clone, Debug)]
 enum Opts {
     TopicOptions { file_path: PathBuf },
+    TypeOptions { file_path: PathBuf },
     InfoOptions { file_path: PathBuf },
 }
 
@@ -29,8 +30,12 @@ fn args() -> Opts {
         .to_options()
         .descr("Print rosbag topics")
         .command("topics");
-
-    let parser = construct!([info_cmd, topics_cmd]);
+    let file_path = file_parser();
+    let types_cmd = construct!(Opts::TypeOptions { file_path })
+        .to_options()
+        .descr("Print rosbag types")
+        .command("types");
+    let parser = construct!([info_cmd, topics_cmd, types_cmd]);
     parser.to_options().version(env!("CARGO_PKG_VERSION")).run()
 }
 
@@ -52,6 +57,13 @@ fn max_topic_len(bag: &Bag<impl Read + Seek>) -> usize {
 
 fn print_topics(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
     for topic in bag.topics().into_iter().sorted() {
+        writer.write_all(format!("{topic}\n").as_bytes())?
+    }
+    Ok(())
+}
+
+fn print_types(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
+    for topic in bag.types().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
     Ok(())
@@ -151,6 +163,10 @@ fn main() -> Result<(), Error> {
         Opts::InfoOptions { file_path } => {
             let bag = Bag::from(file_path)?;
             print_all(&bag, &mut writer)
+        }
+        Opts::TypeOptions { file_path } => {
+            let bag = Bag::from(file_path)?;
+            print_types(&bag, &mut writer)
         }
     }
 }
