@@ -43,7 +43,7 @@ The `topics` command allows you to see topics without extra noise that `info` pr
 - Open a terminal in your downloads folder
 - `mv frost-x86_64-unknown-linux-gnu frost`
 - `chmod +x frost`
-- `sudo mv frost /user/local/bin` or anywhere else
+- `sudo mv frost /usr/local/bin` or anywhere else
 
 ### Building from source
 **Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
