@@ -8,6 +8,7 @@ name: Build
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: quay.io/pypa/manylinux2014_x86_64 # to support the older glibc 2.17
 
     steps:
       - name: Checkout
