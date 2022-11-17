@@ -53,7 +53,7 @@ The `topics` and `types` commands allow you to see the information you need with
 wget <URL> -O frost
 chmod +x frost
 sudo mv frost /usr/local/bin # or elsewhere
-frost --version # double check it's in your path
+frost --help # check if it's in your path
 ```
 
 
