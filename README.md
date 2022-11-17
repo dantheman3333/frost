@@ -6,9 +6,9 @@ Read rosbags using Rust. Supports custom types via code-generation.
 ## As a binary
 
 ```bash
-cargo run --release --bin frost -- info ./examples/read_bag/fixtures/test.bag
-# or, if you've installed the binary
 frost info ./examples/read_bag/fixtures/test.bag
+# or, if you are building from source:
+cargo run --release --bin frost -- info ./examples/read_bag/fixtures/test.bag
 ```
 ```bash
 path:        ./examples/read_bag/fixtures/test.bag
@@ -17,7 +17,7 @@ duration:    99s
 start:       2022-10-16 20:40:59.000001 UTC (1665952859.000001)
 end:         2022-10-16 20:42:38.000100 UTC (1665952958.000100)
 messages:    200
-compression: TODO
+compression: lz4 [1/1 chunks; 18.53%]
 types:       std_msgs/Float64MultiArray [4b7d974086d4060e7db4613a7e6c3ba4]
              std_msgs/String            [992ce8a1687cec8c8bd883ec73ca41d1]
 topics:      /array          100 msgs : std_msgs/Float64MultiArray
