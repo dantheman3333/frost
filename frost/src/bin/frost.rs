@@ -106,7 +106,28 @@ fn print_all(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(),
         .as_bytes(),
     )?;
     writer.write_all(format!("{0: <13}{1}\n", "messages:", bag.message_count()).as_bytes())?;
-    writer.write_all(format!("{0: <13}TODO\n", "compression:").as_bytes())?;
+
+    let compression_info = bag.compression_info();
+    let total_chunks: usize = compression_info.iter().map(|info| info.chunk_count).sum();
+    let max_compression_name = compression_info
+        .iter()
+        .map(|info| info.name.len())
+        .max()
+        .unwrap_or(0);
+    for (i, info) in compression_info.iter().enumerate() {
+        let col_display = if i == 0 { "compression:" } else { "" };
+        writer.write_all(
+            format!(
+                "{0: <13}{1: <max_compression_name$} [{2}/{3} chunks; {4:.2}%]\n",
+                col_display,
+                info.name,
+                info.chunk_count,
+                total_chunks,
+                (100f64 * info.total_compressed as f64 / info.total_uncompressed as f64)
+            )
+            .as_bytes(),
+        )?;
+    }
 
     let max_type_len = max_type_len(bag);
     for (i, (data_type, md5sum)) in bag
