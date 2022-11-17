@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 use std::borrow::Cow;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader, Cursor};
 use std::path::{Path, PathBuf};
@@ -10,6 +10,8 @@ type ConnectionID = u32;
 type ChunkHeaderLoc = u64;
 
 use errors::{Error, ErrorKind};
+
+use itertools::Itertools;
 pub use util::msgs;
 use util::parsing::get_lengthed_bytes;
 pub use util::query;
@@ -29,6 +31,14 @@ pub struct Bag<R: Read + Seek> {
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
     topic_to_connection_ids: BTreeMap<String, Vec<ConnectionID>>,
+}
+
+#[derive(Debug)]
+pub struct CompressionInfo {
+    pub name: String,
+    pub chunk_count: usize,
+    pub total_compressed: usize,
+    pub total_uncompressed: usize,
 }
 
 #[derive(Debug)]
@@ -694,6 +704,28 @@ impl<R: Read + Seek> Bag<R> {
                 .map(|id| self.index_data.get(id).map_or_else(|| 0, |data| data.len()))
                 .sum()
         })
+    }
+
+    pub fn compression_info(&self) -> Vec<CompressionInfo> {
+        let mut acc = HashMap::<&str, CompressionInfo>::new();
+
+        for metadata in self.chunk_metadata.values() {
+            let info =
+                acc.entry(metadata.compression.as_str())
+                    .or_insert_with(|| CompressionInfo {
+                        name: metadata.compression.clone(),
+                        total_compressed: 0,
+                        total_uncompressed: 0,
+                        chunk_count: 0,
+                    });
+            info.chunk_count += 1;
+            info.total_compressed += metadata.compressed_size as usize;
+            info.total_uncompressed += metadata.uncompressed_size as usize;
+        }
+
+        acc.into_values()
+            .sorted_by(|a, b| b.total_compressed.cmp(&a.total_compressed))
+            .collect()
     }
 
     pub fn topics(&self) -> Vec<&String> {
