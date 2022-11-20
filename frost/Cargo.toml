@@ -20,8 +20,12 @@ bpaf = { workspace = true, features=["autocomplete"]}
 chrono = "0.4.22"
 itertools = "0.10.3"
 lz4_flex = "0.9.5"
-serde = { workspace = true , features = ["derive"]}
+serde = { workspace = true, features = ["derive"]}
 serde_rosmsg = { workspace = true }
 
 [features]
 color = ["bpaf/bright-color"]
+
+
+[[bench]]
+name = "construct"

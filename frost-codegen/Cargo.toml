@@ -9,6 +9,6 @@ chumsky = "0.8.0"
 bpaf = { workspace = true }
 frost = {path = "../frost"}
 lazy_static = "1.4.0"
-serde = { workspace = true , features = ["derive"]}
+serde = { workspace = true, features = ["derive"]}
 serde-xml-rs = "0.6.0"
 walkdir = "2.3.2"
