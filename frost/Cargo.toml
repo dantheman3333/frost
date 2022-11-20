@@ -3,6 +3,7 @@ name = "frost"
 version = "0.2.7"
 edition = "2021"
 rust-version = "1.65"
+build = "build.rs"
 
 [lib]
 name = "frost"
@@ -12,6 +13,9 @@ path = "src/lib.rs"
 name = "frost"
 path = "src/bin/frost.rs"
 
+[build-dependencies]
+rustc_version = "0.4.0"
+
 [dev-dependencies]
 tempfile = { workspace = true }
 
@@ -20,7 +24,7 @@ bpaf = { workspace = true, features=["autocomplete"]}
 chrono = "0.4.22"
 itertools = "0.10.3"
 lz4_flex = "0.9.5"
-serde = { workspace = true , features = ["derive"]}
+serde = { workspace = true, features = ["derive"]}
 serde_rosmsg = { workspace = true }
 
 [features]
