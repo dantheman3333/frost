@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use chumsky::prelude::*;
 
 #[derive(Debug, PartialEq)]
