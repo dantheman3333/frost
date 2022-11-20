@@ -1,12 +1,13 @@
 #![allow(dead_code)]
-#![cfg_attr(feature = "nightly", feature(test))]
+#![cfg(nightly)]
+#![feature(test)]
 
-#[cfg(all(feature = "nightly", test))]
+#[cfg(all(nightly, test))]
 extern crate test;
 
 const COMPRESSED_LZ4: &[u8] = include_bytes!("../tests/fixtures/compressed_lz4.bag");
 
-#[cfg(all(feature = "nightly", test))]
+#[cfg(all(nightly, test))]
 #[cfg(test)]
 mod tests {
     use super::*;
