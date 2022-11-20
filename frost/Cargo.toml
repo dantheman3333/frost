@@ -25,7 +25,3 @@ serde_rosmsg = { workspace = true }
 
 [features]
 color = ["bpaf/bright-color"]
-
-
-[[bench]]
-name = "construct"
