@@ -3,6 +3,7 @@ name = "frost"
 version = "0.2.7"
 edition = "2021"
 rust-version = "1.65"
+build = "build.rs"
 
 [lib]
 name = "frost"
@@ -11,6 +12,9 @@ path = "src/lib.rs"
 [[bin]]
 name = "frost"
 path = "src/bin/frost.rs"
+
+[build-dependencies]
+rustc_version = "0.4.0"
 
 [dev-dependencies]
 tempfile = { workspace = true }
@@ -25,3 +29,4 @@ serde_rosmsg = { workspace = true }
 
 [features]
 color = ["bpaf/bright-color"]
+nightly = []
