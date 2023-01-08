@@ -5,8 +5,8 @@ use frost::Bag;
 use tempfile::{tempdir, TempDir};
 
 mod msgs;
-use self::msgs::msgs::std_msgs;
 use self::msgs::msgs::dummy_msgs;
+use self::msgs::msgs::std_msgs;
 
 fn setup_fixture(tmp_dir: &TempDir) -> PathBuf {
     let bytes = include_bytes!("../fixtures/test.bag");
