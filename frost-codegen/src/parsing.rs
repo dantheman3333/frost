@@ -77,7 +77,7 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
         .map(|((msg_type, name), value)| Statement::Constant {
             msg_type,
             name,
-            value: value.0.into_iter().collect(),
+            value: value.0.into_iter().collect::<String>().trim().to_owned(),
         })
         .or(type_name
             .then(text::ident())
@@ -195,6 +195,52 @@ mod tests {
                     array_size: Some(255),
                 },
                 name: "arr".into(),
+            },
+        ];
+
+        assert_eq!(expected, actual)
+    }
+
+    #[test]
+    fn test_parse_constant() {
+        let text = r##"custom_pkg/SomeMsg data=bar
+        int32 Y=-123
+        string EXAMPLE="#comments" are ignored, and leading and trailing whitespace removed   
+        "##;
+
+        let actual = parse(text).unwrap();
+
+        let expected = vec![
+            Statement::Constant {
+                msg_type: Type {
+                    package_name: Some("custom_pkg".into()),
+                    name: "SomeMsg".into(),
+                    is_array: false,
+                    array_size: None,
+                },
+                name: "data".into(),
+                value: "bar".into(),
+            },
+            Statement::Constant {
+                msg_type: Type {
+                    package_name: None,
+                    name: "int32".into(),
+                    is_array: false,
+                    array_size: None,
+                },
+                name: "Y".into(),
+                value: "-123".into(),
+            },
+            Statement::Constant {
+                msg_type: Type {
+                    package_name: None,
+                    name: "string".into(),
+                    is_array: false,
+                    array_size: None,
+                },
+                name: "EXAMPLE".into(),
+                value: "\"#comments\" are ignored, and leading and trailing whitespace removed"
+                    .into(),
             },
         ];
 

@@ -41,9 +41,14 @@ std_msgs/Float64MultiArray
 std_msgs/String
 ```
 
-### Why use this over the normal `rosbag info`?
+## Why use this over the normal `rosbag info`?
 
-The `topics` and `types` commands allow you to see the information you need without extra noise that `info` provides, and this program is around 4x to 15x+ faster (larger the bag, faster the speedup).
+### Speed:
+This program is around *4x to 120x+* faster (larger the bag, faster the speedup).
+On a compressed 25GB bag, the vanilla `rosbag` can take 20+ minutes, while `frost` returns in less than ~10 seconds. 
+
+### More commands
+The `topics` and `types` commands allow you to see the information you need without extra noise that `info` provides
 
 --------------------------------------------------------
 ## Installation

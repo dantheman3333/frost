@@ -5,6 +5,7 @@ use frost::Bag;
 use tempfile::{tempdir, TempDir};
 
 mod msgs;
+use self::msgs::msgs::dummy_msgs;
 use self::msgs::msgs::std_msgs;
 
 fn setup_fixture(tmp_dir: &TempDir) -> PathBuf {
@@ -50,4 +51,11 @@ fn main() {
     let msg_view = bag.read_messages(&query).unwrap().last().unwrap();
     let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
     println!("Last {} message is {}", &msg_view.topic, msg.data);
+
+    // check msg constants (type not in bag)
+    assert_eq!(dummy_msgs::Dummy::PI, 3.14f32);
+    assert_eq!(dummy_msgs::Dummy::N_PI, -3.14f64);
+    assert_eq!(dummy_msgs::Dummy::HELLO, "WORLD");
+
+    println!("Dummy.msg's HELLO field is {}", dummy_msgs::Dummy::HELLO);
 }
