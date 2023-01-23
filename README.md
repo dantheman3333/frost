@@ -16,6 +16,7 @@ version:     2.0
 duration:    99s
 start:       2022-10-16 20:40:59.000001 UTC (1665952859.000001)
 end:         2022-10-16 20:42:38.000100 UTC (1665952958.000100)
+size:        11.53 KiB (11808 bytes)
 messages:    200
 compression: lz4 [1/1 chunks; 18.53%]
 types:       std_msgs/Float64MultiArray [4b7d974086d4060e7db4613a7e6c3ba4]
