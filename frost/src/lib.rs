@@ -31,6 +31,7 @@ pub struct Bag<R: Read + Seek> {
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
     topic_to_connection_ids: BTreeMap<String, Vec<ConnectionID>>,
+    pub size: u64,
 }
 
 #[derive(Debug)]
@@ -627,11 +628,13 @@ impl Bag<BufReader<File>> {
     {
         let path: PathBuf = file_path.as_ref().into();
         let file = File::open(file_path)?;
+        let file_size = file.metadata()?.len();
 
         let reader = BufReader::new(file);
 
         let mut bag = Self::from_reader(reader)?;
         bag.file_path = Some(path);
+        bag.size = file_size;
         Ok(bag)
     }
 }
@@ -639,7 +642,8 @@ impl Bag<BufReader<File>> {
 impl<'a> Bag<Cursor<&'a [u8]>> {
     pub fn from_bytes(bytes: &'a [u8]) -> Result<Self, Error> {
         let reader = Cursor::new(bytes);
-        let bag = Self::from_reader(reader)?;
+        let mut bag = Self::from_reader(reader)?;
+        bag.size = bytes.len() as u64;
         Ok(bag)
     }
 }
@@ -669,6 +673,7 @@ impl<R: Read + Seek> Bag<R> {
             connection_data,
             index_data,
             topic_to_connection_ids: topic_to_ids,
+            size: 0, // will be set in constructor 
         })
     }
 
