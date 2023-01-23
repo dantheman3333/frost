@@ -673,7 +673,7 @@ impl<R: Read + Seek> Bag<R> {
             connection_data,
             index_data,
             topic_to_connection_ids: topic_to_ids,
-            size: 0, // will be set in constructor 
+            size: 0, // will be set in constructor
         })
     }
 
