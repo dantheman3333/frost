@@ -69,6 +69,27 @@ fn print_types(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(
     Ok(())
 }
 
+fn human_bytes(bytes: u64) -> String {
+    let units = ["bytes", "KiB", "MiB", "Gib"];
+
+    let mut unit = units[0];
+    let mut remainder = bytes as f64;
+
+    for u in units {
+        unit = u;
+        if remainder < 1024.0 {
+            break;
+        }
+        remainder = remainder / 1024.0;
+    }
+
+    if unit == "bytes" {
+        format!("{bytes} bytes")
+    } else {
+        format!("{remainder:.2} {unit} ({bytes} bytes)")
+    }
+}
+
 fn print_all(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
     let start_time = bag.start_time().expect("Bag does not have a start time");
     let end_time = bag.end_time().expect("Bag does not have a end time");
@@ -105,9 +126,13 @@ fn print_all(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(),
         )
         .as_bytes(),
     )?;
+
+    writer.write_all(format!("{0: <13}{1}\n", "size:", human_bytes(bag.size)).as_bytes())?;
+
     writer.write_all(format!("{0: <13}{1}\n", "messages:", bag.message_count()).as_bytes())?;
 
     let compression_info = bag.compression_info();
+
     let total_chunks: usize = compression_info.iter().map(|info| info.chunk_count).sum();
     let max_compression_name = compression_info
         .iter()
