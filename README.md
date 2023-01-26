@@ -25,7 +25,7 @@ topics:      /array          100 msgs : std_msgs/Float64MultiArray
              /chatter        100 msgs : std_msgs/String
 ```
 
-There are more commands than the standard `rosbag info`, such as the `topics` command, which will just print the topics in the bag:
+There are more commands than the standard `rosbag info`, such as the `info --minimal` subcommand, which will leave out the types and topics. Or, the `topics` command, which will just print the topics in the bag:
 ```bash
 frost topics ./examples/read_bag/fixtures/test.bag
 ```

@@ -12,7 +12,7 @@ use frost::Bag;
 enum Opts {
     TopicOptions { file_path: PathBuf },
     TypeOptions { file_path: PathBuf },
-    InfoOptions { file_path: PathBuf },
+    InfoOptions { minimal: bool, file_path: PathBuf },
 }
 
 fn file_parser() -> impl Parser<PathBuf> {
@@ -21,7 +21,11 @@ fn file_parser() -> impl Parser<PathBuf> {
 
 fn args() -> Opts {
     let file_path = file_parser();
-    let info_cmd = construct!(Opts::InfoOptions { file_path })
+    let minimal = short('m')
+        .long("minimal")
+        .help("Show minimal info (no topics)")
+        .switch();
+    let info_cmd = construct!(Opts::InfoOptions { minimal, file_path })
         .to_options()
         .descr("Print rosbag information")
         .command("info");
@@ -90,7 +94,11 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-fn print_all(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
+fn print_all(
+    bag: &Bag<impl Read + Seek>,
+    minimal: bool,
+    writer: &mut impl Write,
+) -> Result<(), Error> {
     let start_time = bag.start_time().expect("Bag does not have a start time");
     let end_time = bag.end_time().expect("Bag does not have a end time");
 
@@ -154,6 +162,10 @@ fn print_all(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(),
         )?;
     }
 
+    if minimal {
+        return Ok(());
+    }
+
     let max_type_len = max_type_len(bag);
     for (i, (data_type, md5sum)) in bag
         .connection_data
@@ -206,9 +218,9 @@ fn main() -> Result<(), Error> {
             let bag = Bag::from(file_path)?;
             print_topics(&bag, &mut writer)
         }
-        Opts::InfoOptions { file_path } => {
+        Opts::InfoOptions { minimal, file_path } => {
             let bag = Bag::from(file_path)?;
-            print_all(&bag, &mut writer)
+            print_all(&bag, minimal, &mut writer)
         }
         Opts::TypeOptions { file_path } => {
             let bag = Bag::from(file_path)?;
