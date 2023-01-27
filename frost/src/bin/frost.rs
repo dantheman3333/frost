@@ -23,7 +23,7 @@ fn args() -> Opts {
     let file_path = file_parser();
     let minimal = short('m')
         .long("minimal")
-        .help("Show minimal info (no topics)")
+        .help("Show minimal info (without types/topics)")
         .switch();
     let info_cmd = construct!(Opts::InfoOptions { minimal, file_path })
         .to_options()
