@@ -70,12 +70,14 @@ impl OpCode {
     }
 }
 
+#[inline(always)]
 fn read_le_u32(reader: &mut impl Read) -> io::Result<u32> {
     let mut len_buf = [0u8; 4];
     reader.read_exact(&mut len_buf)?;
     Ok(u32::from_le_bytes(len_buf))
 }
 
+#[inline(always)]
 fn field_sep_index(buf: &[u8]) -> Result<usize, Error> {
     buf.iter().position(|&b| b == b'=').ok_or_else(|| {
         Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
@@ -84,6 +86,7 @@ fn field_sep_index(buf: &[u8]) -> Result<usize, Error> {
     })
 }
 
+#[inline(always)]
 fn parse_field(buf: &[u8], i: usize) -> Result<(usize, &[u8], &[u8]), Error> {
     let mut i = i;
     let field_len = util::parsing::parse_le_u32_at(buf, i)? as usize;
@@ -997,6 +1000,7 @@ impl<R: Read + Seek> Bag<R> {
     }
 }
 
+#[inline(always)]
 fn read_header_op(buf: &[u8]) -> Result<OpCode, Error> {
     let mut i = 0;
     loop {
