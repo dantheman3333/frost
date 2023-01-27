@@ -68,8 +68,8 @@ impl Time {
     pub fn dur(&self, other: &Time) -> Duration {
         Duration::from(self) - Duration::from(other)
     }
-    pub fn as_datetime(&self) -> DateTime<Utc> {
-        Utc.timestamp(self.secs as i64, self.nsecs)
+    pub fn as_datetime(&self) -> Option<DateTime<Utc>> {
+        Utc.timestamp_opt(self.secs as i64, self.nsecs).single()
     }
 }
 

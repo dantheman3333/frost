@@ -74,7 +74,7 @@ fn print_types(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(
 }
 
 fn human_bytes(bytes: u64) -> String {
-    let units = ["bytes", "KiB", "MiB", "Gib"];
+    let units = ["bytes", "KB", "MB", "GB"];
 
     let mut unit = units[0];
     let mut remainder = bytes as f64;
@@ -120,7 +120,7 @@ fn print_all(
         format!(
             "{0: <13}{1} ({2:.6})\n",
             "start:",
-            start_time.as_datetime(),
+            start_time.as_datetime().unwrap_or_default(),
             f64::from(start_time)
         )
         .as_bytes(),
@@ -129,7 +129,7 @@ fn print_all(
         format!(
             "{0: <13}{1} ({2:.6})\n",
             "end:",
-            end_time.as_datetime(),
+            end_time.as_datetime().unwrap_or_default(),
             f64::from(end_time)
         )
         .as_bytes(),
