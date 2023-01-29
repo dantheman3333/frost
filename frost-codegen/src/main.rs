@@ -1,5 +1,6 @@
 use bpaf::Parser;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::io::{BufWriter, Write};
 use std::process::Command;
 use std::{
@@ -175,7 +176,7 @@ fn fmt_file(path: &PathBuf) -> Result<(), Error> {
 
 fn write_all(
     out_path: &PathBuf,
-    mods: HashMap<String, String>,
+    mods: BTreeMap<String, String>,
     msgs: Vec<(PathBuf, RosMsg)>,
 ) -> Result<(), Error> {
     let file = File::create(out_path)?;
@@ -223,8 +224,8 @@ fn write_all(
 
 fn get_mods_and_msgs(
     input_paths: &[PathBuf],
-) -> Result<(HashMap<String, String>, Vec<(PathBuf, RosMsg)>), Error> {
-    let mut packages = HashMap::<String, String>::new();
+) -> Result<(BTreeMap<String, String>, Vec<(PathBuf, RosMsg)>), Error> {
+    let mut packages = BTreeMap::<String, String>::new();
     let mut msgs = Vec::<(PathBuf, RosMsg)>::new();
 
     input_paths.iter().for_each(|input_path| {
@@ -264,7 +265,7 @@ fn get_mods_and_msgs(
             }
         }
     });
-
+    msgs.sort_by(|(_, a_msg), (_, b_msg)| a_msg.name.cmp(&b_msg.name));
     Ok((packages, msgs))
 }
 
@@ -272,6 +273,8 @@ fn main() -> Result<(), Error> {
     let opts = build_parser().to_options().run();
 
     let (mods, msgs) = get_mods_and_msgs(&opts.input_paths)?;
+
+    println!("Found {} message definitions", msgs.len());
 
     write_all(&opts.output_path, mods, msgs)?;
     fmt_file(&opts.output_path)?;
