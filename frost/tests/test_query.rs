@@ -27,14 +27,14 @@ fn bag_iter_from_file() {
     ]
     .iter()
     {
-        let (_tmp_dir, file_path) = write_test_fixture(*bytes);
+        let (_tmp_dir, file_path) = write_test_fixture(bytes);
         let mut bag = Bag::from(file_path).unwrap();
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();
         assert_eq!(count, 200, "{name}");
 
-        let query = Query::new().with_topics(&vec!["/chatter"]);
+        let query = Query::new().with_topics(&["/chatter"]);
         let count = bag.read_messages(&query).unwrap().count();
         assert_eq!(count, 100, "{name}");
     }
@@ -54,7 +54,7 @@ fn bag_iter_from_bytes() {
         let count = bag.read_messages(&query).unwrap().count();
         assert_eq!(count, 200, "{name}");
 
-        let query = Query::new().with_topics(&vec!["/chatter"]);
+        let query = Query::new().with_topics(&["/chatter"]);
         let count = bag.read_messages(&query).unwrap().count();
         assert_eq!(count, 100, "{name}");
     }

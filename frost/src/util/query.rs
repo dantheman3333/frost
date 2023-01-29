@@ -157,7 +157,7 @@ mod tests {
         assert_eq!(query.start_time, None);
         assert_eq!(query.end_time, None);
 
-        let query = Query::new().with_topics(&vec!["/chatter", "array"]);
+        let query = Query::new().with_topics(&["/chatter", "array"]);
         assert_eq!(
             query.topics,
             Some(vec!("/chatter".to_string(), "array".to_string()))

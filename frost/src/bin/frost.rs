@@ -84,7 +84,7 @@ fn human_bytes(bytes: u64) -> String {
         if remainder < 1024.0 {
             break;
         }
-        remainder = remainder / 1024.0;
+        remainder /= 1024.0;
     }
 
     if unit == "bytes" {

@@ -1,3 +1,4 @@
+use std::f64::consts::PI;
 use std::{fs::File, io::Write, path::PathBuf};
 
 use frost::query::Query;
@@ -53,8 +54,8 @@ fn main() {
     println!("Last {} message is {}", &msg_view.topic, msg.data);
 
     // check msg constants (type not in bag)
-    assert_eq!(dummy_msgs::Dummy::PI, 3.14f32);
-    assert_eq!(dummy_msgs::Dummy::N_PI, -3.14f64);
+    assert_eq!(dummy_msgs::Dummy::PI, PI as f32);
+    assert_eq!(dummy_msgs::Dummy::N_PI, -PI);
     assert_eq!(dummy_msgs::Dummy::HELLO, "WORLD");
 
     println!("Dummy.msg's HELLO field is {}", dummy_msgs::Dummy::HELLO);
