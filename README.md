@@ -67,7 +67,7 @@ frost --help # check if it's in your path
 **Note**: if you do not have Rust or Cargo installed, follow the guide [here](https://www.rust-lang.org/tools/install).
 
 ```bash
-cargo install --all-features --git https://github.com/kramer425/frost.git frost 
+cargo install --all-features --git https://github.com/dantheman3333/frost.git frost 
 ```
 
 #### Optional Build Features:
