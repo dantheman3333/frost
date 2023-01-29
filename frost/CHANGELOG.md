@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.2.11] - 2023-01-26
+
+Just a few build tweaks/optimizations
+
 ## [0.2.10] - 2023-01-26
 
 Small changes to the human readable size output and some deprecated function cleanup
