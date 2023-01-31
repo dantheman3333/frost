@@ -23,7 +23,7 @@ tempfile = { workspace = true }
 bpaf = { workspace = true, features=["autocomplete"]}
 chrono = "0.4.22"
 itertools = "0.10.3"
-lz4_flex = "0.9.5"
+lz4_flex = "0.10.0"
 serde = { workspace = true, features = ["derive"]}
 serde_rosmsg = { workspace = true }
 
