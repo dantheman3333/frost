@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::io::{BufWriter, Read, Seek, Write};
 use std::path::PathBuf;
 
-use bpaf::*;
+use clap;
 use itertools::Itertools;
 
 use frost::errors::Error;
@@ -15,32 +15,64 @@ enum Opts {
     InfoOptions { minimal: bool, file_path: PathBuf },
 }
 
-fn file_parser() -> impl Parser<PathBuf> {
-    positional::<PathBuf>("FILE").complete_shell(ShellComp::File { mask: None })
-}
-
 fn args() -> Opts {
-    let file_path = file_parser();
-    let minimal = short('m')
-        .long("minimal")
-        .help("Show minimal info (without types/topics)")
-        .switch();
-    let info_cmd = construct!(Opts::InfoOptions { minimal, file_path })
-        .to_options()
-        .descr("Print rosbag information")
-        .command("info");
-    let file_path = file_parser();
-    let topics_cmd = construct!(Opts::TopicOptions { file_path })
-        .to_options()
-        .descr("Print rosbag topics")
-        .command("topics");
-    let file_path = file_parser();
-    let types_cmd = construct!(Opts::TypeOptions { file_path })
-        .to_options()
-        .descr("Print rosbag types")
-        .command("types");
-    let parser = construct!([info_cmd, topics_cmd, types_cmd]);
-    parser.to_options().version(env!("CARGO_PKG_VERSION")).run()
+    let cmd = clap::Command::new("frost")
+        .version(env!("CARGO_PKG_VERSION"))
+        .bin_name("frost")
+        .subcommand_required(true)
+        .subcommand(
+            clap::Command::new("topics")
+                .about("Prints the topics in the bag")
+                .arg(
+                    clap::Arg::new("file")
+                        .help("The bag file to read")
+                        .required(true)
+                        .value_parser(clap::value_parser!(std::path::PathBuf)),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("types")
+                .about("Prints the types in the bag")
+                .arg(
+                    clap::Arg::new("file")
+                        .help("The bag file to read")
+                        .required(true)
+                        .value_parser(clap::value_parser!(std::path::PathBuf)),
+                ),
+        )
+        .subcommand(
+            clap::Command::new("info")
+                .about("Prints information about the bag")
+                .arg(
+                    clap::Arg::new("file")
+                        .help("The bag file to read")
+                        .required(true)
+                        .value_parser(clap::value_parser!(std::path::PathBuf)),
+                )
+                .arg(
+                    clap::Arg::new("minimal")
+                        .help("Prints only the minimal metadata, exludes topics and types")
+                        .short('m')
+                        .long("minimal"),
+                ),
+        );
+    let matches = cmd.get_matches();
+    match matches.subcommand() {
+        Some(("topics", matches)) => Opts::TopicOptions {
+            file_path: matches.get_one::<PathBuf>("file").unwrap().clone(),
+        },
+        Some(("types", matches)) => Opts::TypeOptions {
+            file_path: matches.get_one::<PathBuf>("file").unwrap().clone(),
+        },
+        Some(("info", matches)) => Opts::InfoOptions {
+            minimal: matches
+                .get_one::<bool>("minimal")
+                .unwrap_or(&false)
+                .to_owned(),
+            file_path: matches.get_one::<PathBuf>("file").unwrap().clone(),
+        },
+        _ => unreachable!(),
+    }
 }
 
 fn max_type_len(bag: &Bag<impl Read + Seek>) -> usize {
