@@ -187,6 +187,9 @@ fn print_all(
     }
 
     let max_topic_len = max_topic_len(bag);
+
+    let topic_counts = bag.topic_message_counts();
+
     for (i, (topic, data_type)) in bag
         .topics_and_types()
         .into_iter()
@@ -194,7 +197,7 @@ fn print_all(
         .enumerate()
     {
         let col_display = if i == 0 { "topics:" } else { "" };
-        let msg_count = bag.topic_message_count(topic).unwrap_or(0);
+        let msg_count = topic_counts.get(topic).unwrap_or(&0);
         writer.write_all(
             format!(
                 "{0: <13}{1: <max_topic_len$} {2:>10} msgs : {3}\n",

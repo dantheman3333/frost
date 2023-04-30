@@ -715,13 +715,15 @@ impl<R: Read + Seek> Bag<R> {
         self.index_data.values().map(|v| v.len()).sum()
     }
 
-    pub fn topic_message_count(&self, topic: &str) -> Option<usize> {
-        self.topic_to_connection_ids().get(topic).map(|conn_ids| {
+    pub fn topic_message_counts(&self) -> BTreeMap<String, usize> {
+        let topic_to_ids = self.topic_to_connection_ids();
+        topic_to_ids.iter().map(|(topic, conn_ids)| {
+            (topic.clone(), 
             conn_ids
                 .iter()
                 .map(|id| self.index_data.get(id).map_or_else(|| 0, |data| data.len()))
-                .sum()
-        })
+                .sum())
+        }).collect()
     }
 
     pub fn compression_info(&self) -> Vec<CompressionInfo> {
