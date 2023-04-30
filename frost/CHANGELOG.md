@@ -1,5 +1,9 @@
 # Changelog
 
+## [0.3.0] - 2023-04-30
+
+Added `with_types` api to Queries
+
 ## [0.2.11] - 2023-01-26
 
 Just a few build tweaks/optimizations
