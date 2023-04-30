@@ -57,6 +57,35 @@ fn bag_iter_from_bytes() {
         let query = Query::new().with_topics(&["/chatter"]);
         let count = bag.read_messages(&query).unwrap().count();
         assert_eq!(count, 100, "{name}");
+
+        let query = Query::new().with_types(&["std_msgs/String"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 100, "{name}");
+        bag.read_messages(&query).unwrap().for_each(|msg_view| {
+            assert_eq!(msg_view.topic, "/chatter");
+        });
+
+        let query = Query::new()
+            .with_topics(&["/chatter"])
+            .with_types(&["std_msgs/String"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 100, "{name}");
+
+        let query = Query::new()
+            .with_topics(&["/time"])
+            .with_types(&["std_msgs/Time"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 100, "{name}");
+
+        let query = Query::new()
+            .with_topics(&["/chatter"])
+            .with_types(&["std_msgs/Time"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 0, "{name}");
+
+        let query = Query::new().with_types(&["std_msgs/Time", "std_msgs/String"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 200, "{name}");
     }
 }
 

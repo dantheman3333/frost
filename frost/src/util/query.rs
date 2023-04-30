@@ -9,6 +9,7 @@ use super::{msgs::MessageView, parsing::parse_le_u32_at};
 
 pub struct Query {
     topics: Option<Vec<String>>,
+    types: Option<Vec<String>>,
     start_time: Option<Time>,
     end_time: Option<Time>,
 }
@@ -17,6 +18,7 @@ impl Query {
     pub fn all() -> Self {
         Query {
             topics: None,
+            types: None,
             start_time: None,
             end_time: None,
         }
@@ -31,6 +33,14 @@ impl Query {
         S: AsRef<str> + Into<String>,
     {
         self.topics = Some(topics.iter().map(|s| s.as_ref().into()).collect());
+        self
+    }
+
+    pub fn with_types<S>(mut self, types: &[S]) -> Self
+    where
+        S: AsRef<str> + Into<String>,
+    {
+        self.types = Some(types.iter().map(|s| s.as_ref().into()).collect());
         self
     }
 
@@ -58,20 +68,36 @@ pub struct BagIter<'a, R: Read + Seek> {
 }
 impl<'a, R: Read + Seek> BagIter<'a, R> {
     pub(crate) fn new(bag: &'a mut Bag<R>, query: &Query) -> Result<Self, Error> {
-        let ids: HashSet<ConnectionID> = match &query.topics {
+        let topic_to_connection_ids = bag.topic_to_connection_ids();
+        let ids_from_topics: HashSet<ConnectionID> = match &query.topics {
             Some(topics) => topics
                 .iter()
-                .flat_map(|topic| bag.topic_to_connection_ids.get(topic).cloned())
+                .flat_map(|topic| topic_to_connection_ids.get(topic).cloned())
                 .flatten()
                 .collect(),
-            None => bag
-                .topic_to_connection_ids
+            None => topic_to_connection_ids
                 .values()
                 .flatten()
                 .cloned()
                 .collect(),
         };
-
+        let types_to_connection_ids = bag.type_to_connection_ids();
+        let ids_from_types: HashSet<ConnectionID> = match &query.types {
+            Some(types) => types
+                .iter()
+                .flat_map(|ty| types_to_connection_ids.get(ty).cloned())
+                .flatten()
+                .collect(),
+            None => types_to_connection_ids
+                .values()
+                .flatten()
+                .cloned()
+                .collect(),
+        };
+        let ids: HashSet<ConnectionID> = ids_from_topics
+            .intersection(&ids_from_types)
+            .cloned()
+            .collect();
         let mut index_data: Vec<IndexData> = ids
             .iter()
             .flat_map(|id| bag.index_data.get(id).unwrap().clone())

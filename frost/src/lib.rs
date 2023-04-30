@@ -30,7 +30,6 @@ pub struct Bag<R: Read + Seek> {
     pub(crate) chunk_bytes: BTreeMap<ChunkHeaderLoc, Vec<u8>>,
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
-    topic_to_connection_ids: BTreeMap<String, Vec<ConnectionID>>,
     pub size: u64,
 }
 
@@ -657,16 +656,6 @@ impl<R: Read + Seek> Bag<R> {
 
         let (chunk_metadata, connection_data, index_data) = Bag::parse_records(&mut reader)?;
 
-        let topic_to_ids: BTreeMap<String, Vec<ConnectionID>> =
-            connection_data
-                .values()
-                .fold(BTreeMap::new(), |mut acc, data| {
-                    acc.entry(data.topic.clone())
-                        .or_default()
-                        .push(data.connection_id);
-                    acc
-                });
-
         Ok(Bag {
             version,
             file_path: None,
@@ -675,9 +664,30 @@ impl<R: Read + Seek> Bag<R> {
             chunk_bytes: BTreeMap::new(),
             connection_data,
             index_data,
-            topic_to_connection_ids: topic_to_ids,
             size: 0, // will be set in constructor
         })
+    }
+
+    fn topic_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
+        self.connection_data
+            .values()
+            .fold(BTreeMap::new(), |mut acc, data| {
+                acc.entry(data.topic.clone())
+                    .or_default()
+                    .push(data.connection_id);
+                acc
+            })
+    }
+
+    fn type_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
+        self.connection_data
+            .values()
+            .fold(BTreeMap::new(), |mut acc, data| {
+                acc.entry(data.data_type.clone())
+                    .or_default()
+                    .push(data.connection_id);
+                acc
+            })
     }
 
     pub fn read_messages(&mut self, query: &Query) -> Result<BagIter<R>, Error> {
@@ -705,13 +715,20 @@ impl<R: Read + Seek> Bag<R> {
         self.index_data.values().map(|v| v.len()).sum()
     }
 
-    pub fn topic_message_count(&self, topic: &str) -> Option<usize> {
-        self.topic_to_connection_ids.get(topic).map(|conn_ids| {
-            conn_ids
-                .iter()
-                .map(|id| self.index_data.get(id).map_or_else(|| 0, |data| data.len()))
-                .sum()
-        })
+    pub fn topic_message_counts(&self) -> BTreeMap<String, usize> {
+        let topic_to_ids = self.topic_to_connection_ids();
+        topic_to_ids
+            .iter()
+            .map(|(topic, conn_ids)| {
+                (
+                    topic.clone(),
+                    conn_ids
+                        .iter()
+                        .map(|id| self.index_data.get(id).map_or_else(|| 0, |data| data.len()))
+                        .sum(),
+                )
+            })
+            .collect()
     }
 
     pub fn compression_info(&self) -> Vec<CompressionInfo> {
@@ -736,8 +753,12 @@ impl<R: Read + Seek> Bag<R> {
             .collect()
     }
 
-    pub fn topics(&self) -> Vec<&String> {
-        self.topic_to_connection_ids.keys().collect()
+    pub fn topics(&self) -> Vec<&str> {
+        self.connection_data
+            .values()
+            .map(|d| d.topic.as_ref())
+            .unique()
+            .collect()
     }
 
     pub fn topics_and_types(&self) -> HashSet<(&String, &String)> {

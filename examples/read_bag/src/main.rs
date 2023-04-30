@@ -53,6 +53,14 @@ fn main() {
     let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
     println!("Last {} message is {}", &msg_view.topic, msg.data);
 
+    let query = Query::new().with_types(&["std_msgs/Float64MultiArray"]);
+    let count = bag.read_messages(&query).unwrap().count();
+    assert_eq!(count, 100);
+    println!(
+        "There are {} messages with type {}",
+        count, "std_msgs/Float64MultiArray"
+    );
+
     // check msg constants (type not in bag)
     assert_eq!(dummy_msgs::Dummy::PI, PI);
     assert_eq!(dummy_msgs::Dummy::N_PI, -PI);
