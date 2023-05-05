@@ -5,9 +5,10 @@ use frost::query::Query;
 use frost::Bag;
 use tempfile::{tempdir, TempDir};
 
-mod msgs;
-use self::msgs::msgs::dummy_msgs;
-use self::msgs::msgs::std_msgs;
+include!(concat!(env!("OUT_DIR"), "/msgs.rs"));
+
+use self::msgs::dummy_msgs;
+use self::msgs::std_msgs;
 
 fn setup_fixture(tmp_dir: &TempDir) -> PathBuf {
     let bytes = include_bytes!("../fixtures/test.bag");
@@ -57,8 +58,8 @@ fn main() {
     let count = bag.read_messages(&query).unwrap().count();
     assert_eq!(count, 100);
     println!(
-        "There are {} messages with type {}",
-        count, "std_msgs/Float64MultiArray"
+        "There are {} messages with type std_msgs/Float64MultiArray",
+        count
     );
 
     // check msg constants (type not in bag)

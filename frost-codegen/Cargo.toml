@@ -1,6 +1,6 @@
 [package]
-name = "frost-codegen"
-version = "0.1.4"
+name = "frost_codegen"
+version = "0.2.0"
 edition = "2021"
 rust-version = "1.65"
 
@@ -12,3 +12,11 @@ lazy_static = "1.4.0"
 serde = { workspace = true, features = ["derive"]}
 serde-xml-rs = "0.6.0"
 walkdir = "2.3.2"
+
+[lib]
+name = "frost_codegen"
+path = "src/lib.rs"
+
+[[bin]]
+name = "frost_codegen"
+path = "src/bin.rs"
