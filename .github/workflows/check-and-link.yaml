@@ -18,6 +18,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+          submodules: recursive
 
       - uses: actions-rs/cargo@v1
         with:
@@ -47,6 +48,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
+          submodules: recursive
       - run: rustup component add rustfmt
       - uses: actions-rs/cargo@v1
         with:
