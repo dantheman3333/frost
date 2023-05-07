@@ -4,3 +4,4 @@ Cargo.lock
 /venv
 /frost/tests/fixtures/test_large.bag
 /frost/tests/fixtures/test_xl.bag
+/frost/tests/fixtures/decompressed_large.bag
