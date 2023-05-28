@@ -3,7 +3,7 @@ import os
 
 import rosbag
 import rospy
-from std_msgs.msg import Time, String
+from std_msgs.msg import Time, String, Float64MultiArray, MultiArrayDimension, MultiArrayLayout
 
 
 def main():
@@ -30,8 +30,17 @@ def main():
             t_msg.data.secs = t.secs
             t_msg.data.nsecs = t.nsecs
 
+            array_msg = Float64MultiArray()
+            array_msg.layout = MultiArrayLayout()
+            array_msg.layout.data_offset = 0
+            array_msg.layout.dim = [MultiArrayDimension("data", 3, 3)]
+            array_msg.data = [3.14] * 3
+
+
             bag.write('/chatter', s_msg, t=t)
             bag.write('/time', t_msg, t=t)
+            bag.write('/array', array_msg, t=t)
+
     finally:
         bag.close()
     

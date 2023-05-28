@@ -2,9 +2,12 @@ use std::{fs::File, io::Write, path::PathBuf};
 
 use frost::errors::ErrorKind;
 use frost::query::Query;
-use frost::time::Time;
-use frost::{msgs::Msg, Bag};
+use frost::Bag;
+
 use tempfile::{tempdir, TempDir};
+
+mod common;
+use common::msgs::std_msgs;
 
 const DECOMPRESSED: &[u8] = include_bytes!("fixtures/decompressed.bag");
 const COMPRESSED_LZ4: &[u8] = include_bytes!("fixtures/compressed_lz4.bag");
@@ -32,7 +35,7 @@ fn bag_iter_from_file() {
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();
-        assert_eq!(count, 200, "{name}");
+        assert_eq!(count, 300, "{name}");
 
         let query = Query::new().with_topics(&["/chatter"]);
         let count = bag.read_messages(&query).unwrap().count();
@@ -52,9 +55,13 @@ fn bag_iter_from_bytes() {
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();
-        assert_eq!(count, 200, "{name}");
+        assert_eq!(count, 300, "{name}");
 
         let query = Query::new().with_topics(&["/chatter"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 100, "{name}");
+
+        let query = Query::new().with_topics(&["/array"]);
         let count = bag.read_messages(&query).unwrap().count();
         assert_eq!(count, 100, "{name}");
 
@@ -89,16 +96,6 @@ fn bag_iter_from_bytes() {
     }
 }
 
-// these are technically the wrong types for loadig the messages (not coming from ros .msgs),
-// but we're not using codegen on the std_msgs for the lib,
-// and serde_rosmsg is able to handle the conversion
-#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
-struct NewString(String);
-#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
-struct NewTime(Time);
-impl Msg for NewString {}
-impl Msg for NewTime {}
-
 #[test]
 fn msg_reading() {
     for (bytes, name) in [
@@ -112,8 +109,8 @@ fn msg_reading() {
         let query = Query::new().with_topics(&["/chatter"]);
 
         for (i, msg_view) in bag.read_messages(&query).unwrap().enumerate() {
-            let msg = msg_view.instantiate::<NewString>().unwrap();
-            assert_eq!(msg.0, format!("foo_{i}"), "{name}")
+            let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
+            assert_eq!(msg.data, format!("foo_{i}"), "{name}")
         }
 
         let query = Query::new().with_topics(&["/time"]);
@@ -121,8 +118,19 @@ fn msg_reading() {
         assert_eq!(count, 100, "{name}");
 
         for (i, msg_view) in bag.read_messages(&query).unwrap().enumerate() {
-            let msg = msg_view.instantiate::<NewTime>().unwrap();
-            assert_eq!(msg.0.secs, i as u32, "{name}");
+            let msg = msg_view.instantiate::<std_msgs::Time>().unwrap();
+            assert_eq!(msg.data.secs, i as u32, "{name}");
+        }
+
+        let query = Query::new().with_topics(&["/array"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 100, "{name}");
+
+        for msg_view in bag.read_messages(&query).unwrap() {
+            let msg = msg_view
+                .instantiate::<std_msgs::Float64MultiArray>()
+                .unwrap();
+            assert_eq!(msg.data, vec![3.14, 3.14, 3.14], "{name}");
         }
     }
 }
@@ -141,7 +149,7 @@ fn msg_reading_wrong_type() {
         let msg_view = bag.read_messages(&query).unwrap().last().unwrap();
 
         // Try to read a string as a Time
-        let res = msg_view.instantiate::<NewTime>();
+        let res = msg_view.instantiate::<std_msgs::Time>();
         assert!(
             matches!(res.unwrap_err().kind(), ErrorKind::Deserialization(_)),
             "{name}"

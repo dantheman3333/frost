@@ -3,10 +3,10 @@
 # Utility functions for generating test fixtures
 
 get_python() {
-    if type python &>/dev/null; then
-        echo "python"
-    elif type python3 &>/dev/null; then
+    if type python3 &>/dev/null; then
         echo "python3"
+    elif type python &>/dev/null; then
+        echo "python"
     else
         echo "no python interpreter found"
         exit 1
