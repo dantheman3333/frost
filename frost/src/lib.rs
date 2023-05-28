@@ -143,7 +143,7 @@ impl BagHeader {
                 }
                 other => {
                     return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {}",
+                        "unexpected field: {} in 'BagHeader'",
                         String::from_utf8_lossy(other)
                     )))));
                 }
@@ -226,7 +226,7 @@ impl ChunkHeader {
                 }
                 other => {
                     return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {}",
+                        "unexpected field: {} in 'ChunkHeader'",
                         String::from_utf8_lossy(other)
                     )))));
                 }
@@ -245,7 +245,7 @@ impl ChunkHeader {
             })?,
             uncompressed_size: size.ok_or_else(|| {
                 Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'uncompressed_size' in 'ChunkHeader'",
+                    "expected 'size' in 'ChunkHeader'",
                 )))
             })?,
             chunk_header_pos,
@@ -296,7 +296,7 @@ impl ChunkInfoHeader {
                 }
                 other => {
                     return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {}",
+                        "unexpected field: {} in 'ChunkInfoHeader'",
                         String::from_utf8_lossy(other)
                     )))));
                 }
@@ -310,12 +310,12 @@ impl ChunkInfoHeader {
         Ok(ChunkInfoHeader {
             version: version.ok_or_else(|| {
                 Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'version' in 'ChunkInfoHeader'",
+                    "expected 'ver' in 'ChunkInfoHeader'",
                 )))
             })?,
             chunk_header_pos: chunk_header_pos.ok_or_else(|| {
                 Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'chunk_header_pos' in 'ChunkInfoHeader'",
+                    "expected 'chunk_pos' in 'ChunkInfoHeader'",
                 )))
             })?,
             start_time: start_time.ok_or_else(|| {
@@ -330,7 +330,7 @@ impl ChunkInfoHeader {
             })?,
             connection_count: connection_count.ok_or_else(|| {
                 Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'connection_count' in 'ChunkInfoHeader'",
+                    "expected 'count' in 'ChunkInfoHeader'",
                 )))
             })?,
         })
@@ -381,7 +381,7 @@ impl ConnectionHeader {
                 }
                 other => {
                     return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {}",
+                        "unexpected field: {} in 'ConnectionHeader'",
                         String::from_utf8_lossy(other)
                     )))));
                 }
@@ -395,7 +395,7 @@ impl ConnectionHeader {
         Ok(ConnectionHeader {
             connection_id: connection_id.ok_or_else(|| {
                 Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'connection_id' in 'ConnectionHeader'",
+                    "expected 'conn' in 'ConnectionHeader'",
                 )))
             })?,
             topic: topic.ok_or_else(|| {
@@ -444,7 +444,7 @@ impl ConnectionData {
                 b"latching" => latching = value == b"1",
                 other => {
                     return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {}",
+                        "unexpected field: {} in 'ConnectionData'",
                         String::from_utf8_lossy(other)
                     )))));
                 }
@@ -460,7 +460,7 @@ impl ConnectionData {
             topic,
             data_type: data_type.ok_or_else(|| {
                 Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'data_type' in 'ConnectionData'",
+                    "expected 'type' in 'ConnectionData'",
                 )))
             })?,
             md5sum: md5sum.ok_or_else(|| {
@@ -511,7 +511,7 @@ impl IndexDataHeader {
                 }
                 other => {
                     return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {}",
+                        "unexpected field: {} in 'IndexDataHeader'",
                         String::from_utf8_lossy(other)
                     )))));
                 }
@@ -525,12 +525,12 @@ impl IndexDataHeader {
         Ok(IndexDataHeader {
             version: version.ok_or_else(|| {
                 Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'version' in 'IndexDataHeader'",
+                    "expected 'ver' in 'IndexDataHeader'",
                 )))
             })?,
             connection_id: connection_id.ok_or_else(|| {
                 Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'connection_id' in 'IndexDataHeader'",
+                    "expected 'conn' in 'IndexDataHeader'",
                 )))
             })?,
             count: count.ok_or_else(|| {
@@ -597,7 +597,7 @@ impl MessageDataHeader {
                 }
                 other => {
                     return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {}",
+                        "unexpected field: {} in 'MessageDataHeader'",
                         String::from_utf8_lossy(other)
                     )))));
                 }
