@@ -761,10 +761,10 @@ impl<R: Read + Seek> Bag<R> {
             .collect()
     }
 
-    pub fn topics_and_types(&self) -> HashSet<(&String, &String)> {
+    pub fn topics_and_types(&self) -> HashSet<(&str, &str)> {
         self.connection_data
             .values()
-            .map(|data| (&data.topic, &data.data_type))
+            .map(|data| (&*data.topic, &*data.data_type))
             .collect()
     }
 
