@@ -34,6 +34,7 @@ fn builtin_mappings(data_type: &str) -> Option<&'static str> {
             ("uint32", "u32"),
             ("uint64", "u64"),
             ("string", "std::string::String"),
+            ("Header", "std_msgs::Header"),
             ("time", "frost::time::Time"), // Type manually generated
             ("duration", "frost::time::RosDuration") // Type manually generated
         ].into_iter().collect();
@@ -170,6 +171,10 @@ fn write_all(
 
     for package in mods.values() {
         writer.write_all(format!("pub mod {package} {{").as_bytes())?;
+        
+        if package != "std_msgs"{
+            writer.write_all("use crate::msgs::std_msgs;".as_bytes())?;
+        }
 
         // TODO: redo msgs structure, don't keep looping
         for (msg_path, msg) in msgs.iter() {
@@ -256,3 +261,4 @@ pub fn run(opts: Opts) -> Result<(), Error> {
     write_all(&opts.output_path, mods, msgs)?;
     fmt_file(&opts.output_path)
 }
+
