@@ -74,10 +74,24 @@ fn parser() -> impl Parser<char, Vec<Statement>, Error = Simple<char>> {
         .then_ignore(just('='))
         .then(take_until(just('\n')))
         .padded()
-        .map(|((msg_type, name), value)| Statement::Constant {
-            msg_type,
-            name,
-            value: value.0.into_iter().collect::<String>().trim().to_owned(),
+        .map(|((msg_type, name), value)| {
+            let value = if msg_type.name == "string" {
+                value.0.into_iter().collect::<String>().trim().to_owned()
+            } else {
+                value
+                    .0
+                    .into_iter()
+                    .take_while(|&c| c != '#')
+                    .collect::<String>()
+                    .trim()
+                    .to_owned()
+            };
+
+            Statement::Constant {
+                msg_type,
+                name,
+                value,
+            }
         })
         .or(type_name
             .then(text::ident())
@@ -205,6 +219,7 @@ mod tests {
     fn test_parse_constant() {
         let text = r##"custom_pkg/SomeMsg data=bar
         int32 Y=-123
+        int64 X=23 # this is a comment
         string EXAMPLE="#comments" are ignored, and leading and trailing whitespace removed   
         "##;
 
@@ -230,6 +245,16 @@ mod tests {
                 },
                 name: "Y".into(),
                 value: "-123".into(),
+            },
+            Statement::Constant {
+                msg_type: Type {
+                    package_name: None,
+                    name: "int64".into(),
+                    is_array: false,
+                    array_size: None,
+                },
+                name: "X".into(),
+                value: "23".into(),
             },
             Statement::Constant {
                 msg_type: Type {
