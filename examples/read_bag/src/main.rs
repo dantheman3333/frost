@@ -65,7 +65,7 @@ fn main() {
     // check msg constants (type not in bag)
     assert_eq!(dummy_msgs::Dummy::PI, PI);
     assert_eq!(dummy_msgs::Dummy::N_PI, -PI);
-    assert_eq!(dummy_msgs::Dummy::HELLO, "WORLD");
+    assert_eq!(dummy_msgs::Dummy::HELLO, "\"WORLD\"");
 
     println!("Dummy.msg's HELLO field is {}", dummy_msgs::Dummy::HELLO);
 }
