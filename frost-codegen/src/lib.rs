@@ -92,7 +92,7 @@ impl RosMsg {
                             Some(size) => {
                                 buf.push_str(&format!("[{}; {}]", &full_type_name, size));
                             },
-                            None => buf.push_str(&format!("Vec<{}>", &full_type_name));
+                            None => buf.push_str(&format!("Vec<{}>", &full_type_name)),
                         }
                     } else {
                         buf.push_str(&full_type_name);
