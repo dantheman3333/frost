@@ -79,11 +79,21 @@ impl RosMsg {
                             .unwrap_or(&msg_type.name)
                             .to_owned(),
                     };
+                    if let Some(size) = msg_type.array_size {
+                        if size > 32 {
+                            buf.push_str("#[serde(with = \"serde_big_array::BigArray\")]");
+                        }
+                    }
                     buf.push_str("pub r#"); // use raw identifiers just in case
                     buf.push_str(name);
                     buf.push_str(": ");
                     if msg_type.is_array {
-                        buf.push_str(&format!("Vec<{}>", &full_type_name));
+                        match msg_type.array_size {
+                            Some(size) => {
+                                buf.push_str(&format!("[{}; {}]", &full_type_name, size));
+                            }
+                            None => buf.push_str(&format!("Vec<{}>", &full_type_name)),
+                        }
                     } else {
                         buf.push_str(&full_type_name);
                     }

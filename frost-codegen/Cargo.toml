@@ -1,6 +1,6 @@
 [package]
 name = "frost_codegen"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 rust-version = "1.65"
 
@@ -10,6 +10,7 @@ bpaf = { workspace = true }
 frost = {path = "../frost"}
 lazy_static = "1.4.0"
 serde = { workspace = true, features = ["derive"]}
+serde-big-array = "0.5.1"
 serde-xml-rs = "0.6.0"
 walkdir = "2.3.2"
 
