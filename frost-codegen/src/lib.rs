@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
+use std::env;
 use std::io::{BufWriter, Write};
 use std::process::Command;
 use std::{
@@ -182,7 +183,8 @@ fn get_package_name(path: &PathBuf) -> Result<String, Error> {
 }
 
 fn fmt_file(path: &PathBuf) -> Result<(), Error> {
-    let mut fmt_cmd = Command::new("rustfmt");
+    let rustfmt_path = env::var("RUSTFMT_PATH").unwrap_or("rustfmt".to_string());
+    let mut fmt_cmd = Command::new(&rustfmt_path);
     fmt_cmd.arg(path).output()?;
     Ok(())
 }
