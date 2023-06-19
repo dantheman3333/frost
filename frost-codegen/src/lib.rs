@@ -183,7 +183,7 @@ fn get_package_name(path: &PathBuf) -> Result<String, Error> {
 }
 
 fn fmt_file(path: &PathBuf) -> Result<(), Error> {
-    let rustfmt_path = env::var("RUSTFMT_PATH").unwrap_or("rustfmt".to_string());
+    let rustfmt_path = env::var("RUSTFMT_PATH").unwrap_or("rustfmt".into());
     let mut fmt_cmd = Command::new(&rustfmt_path);
     fmt_cmd.arg(path).output()?;
     Ok(())
