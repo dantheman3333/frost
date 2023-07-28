@@ -3,6 +3,7 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader, Cursor};
+use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -22,7 +23,16 @@ mod util;
 use util::query::{BagIter, Query};
 use util::time::Time;
 
-pub struct Bag<R: Read + Seek> {
+pub trait LoadedState {}
+#[derive(Debug, Default, Clone)]
+pub struct LoadedBag;
+impl LoadedState for LoadedBag{}
+#[derive(Debug, Default, Clone)]
+pub struct UnloadedBag;
+impl LoadedState for UnloadedBag{}
+
+#[derive(Debug)]
+pub struct Bag<R: Read + Seek, S: LoadedState = UnloadedBag> {
     pub file_path: Option<PathBuf>,
     reader: R,
     pub version: String,
@@ -31,6 +41,7 @@ pub struct Bag<R: Read + Seek> {
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
     pub size: u64,
+    marker_bag_state: PhantomData<S>
 }
 
 #[derive(Debug)]
@@ -177,6 +188,7 @@ impl BagHeader {
 /// Struct to store everything about a Chunk
 ///
 /// As ChunkHeader and ChunkInfoHeaders are separate, after parsing all records, combine that info into a Chunk
+#[derive(Debug)]
 struct ChunkMetadata {
     compression: String,
     uncompressed_size: u32,
@@ -623,8 +635,8 @@ impl MessageDataHeader {
     }
 }
 
-impl Bag<BufReader<File>> {
-    pub fn from<P>(file_path: P) -> Result<Self, Error>
+impl<S: LoadedState> Bag<BufReader<File>, S> {
+    pub fn from_file_lazy<P>(file_path: P) -> Result<Bag<BufReader<File>, UnloadedBag>, Error>
     where
         P: AsRef<Path> + Into<PathBuf>,
     {
@@ -641,8 +653,20 @@ impl Bag<BufReader<File>> {
     }
 }
 
+impl Bag<BufReader<File>> {
+    pub fn from_file<P>(file_path: P) -> Result<Bag<BufReader<File>, LoadedBag>, Error>
+    where
+        P: AsRef<Path> + Into<PathBuf>,
+    {
+        let bag = Bag::<BufReader<File>>::from_file_lazy(file_path)?;
+        let bag = bag.load_message_data()?;
+        Ok(bag)
+    }
+}
+
 impl<'a> Bag<Cursor<&'a [u8]>> {
-    pub fn from_bytes(bytes: &'a [u8]) -> Result<Self, Error> {
+    /// TODO: reading the message data when using byte slice as the source is totally unnecessary 
+    pub fn from_bytes_lazy(bytes: &'a [u8]) -> Result<Bag<Cursor<&[u8]>, UnloadedBag>, Error> {
         let reader = Cursor::new(bytes);
         let mut bag = Self::from_reader(reader)?;
         bag.size = bytes.len() as u64;
@@ -650,11 +674,19 @@ impl<'a> Bag<Cursor<&'a [u8]>> {
     }
 }
 
-impl<R: Read + Seek> Bag<R> {
-    fn from_reader(mut reader: R) -> Result<Bag<R>, Error> {
+impl<'a> Bag<Cursor<&'a [u8]>> {
+    pub fn from_bytes(bytes: &'a [u8]) -> Result<Bag<Cursor<&[u8]>, LoadedBag>, Error> {
+        let bag = Bag::<Cursor<&'a [u8]>>::from_bytes_lazy(bytes)?;
+        let bag = bag.load_message_data()?;
+        Ok(bag)
+    }
+}
+
+impl<R: Read + Seek, S: LoadedState> Bag<R, S> {
+    fn from_reader(mut reader: R) -> Result<Bag<R, UnloadedBag>, Error> {
         let version = version_check(&mut reader)?;
 
-        let (chunk_metadata, connection_data, index_data) = Bag::parse_records(&mut reader)?;
+        let (chunk_metadata, connection_data, index_data) = Bag::<R, S>::parse_records(&mut reader)?;
 
         Ok(Bag {
             version,
@@ -665,6 +697,7 @@ impl<R: Read + Seek> Bag<R> {
             connection_data,
             index_data,
             size: 0, // will be set in constructor
+            marker_bag_state: PhantomData::<UnloadedBag>,
         })
     }
 
@@ -688,10 +721,6 @@ impl<R: Read + Seek> Bag<R> {
                     .push(data.connection_id);
                 acc
             })
-    }
-
-    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter<R>, Error> {
-        BagIter::new(self, query)
     }
 
     pub fn start_time(&self) -> Option<Time> {
@@ -773,41 +802,6 @@ impl<R: Read + Seek> Bag<R> {
             .values()
             .map(|data| data.data_type.as_str())
             .collect()
-    }
-
-    pub(crate) fn populate_chunk_bytes(&mut self) -> Result<(), Error> {
-        if !self.chunk_bytes.is_empty() {
-            return Ok(());
-        }
-
-        //TODO: compressed bags, parallelization
-        for (chunk_loc, metadata) in self.chunk_metadata.iter() {
-            let mut buf = vec![0u8; metadata.compressed_size as usize];
-            self.reader
-                .seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))?;
-            self.reader.read_exact(&mut buf[..])?;
-
-            match metadata.compression.as_str() {
-                "none" => {
-                    self.chunk_bytes.insert(*chunk_loc, buf);
-                }
-                "lz4" => {
-                    // TODO: figure out what are these bytes I'm removing..
-                    let decompressed = lz4_flex::decompress(
-                        &buf[11..(buf.len() - 8)],
-                        metadata.uncompressed_size as usize,
-                    )?;
-                    self.chunk_bytes.insert(*chunk_loc, decompressed);
-                }
-                other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unsupported compression: {}",
-                        other
-                    )))))
-                }
-            }
-        }
-        Ok(())
     }
 
     fn parse_bag_header(header_buf: &[u8], reader: &mut R) -> Result<BagHeader, Error> {
@@ -929,11 +923,11 @@ impl<R: Read + Seek> Bag<R> {
 
             match op {
                 OpCode::BagHeader => {
-                    bag_header = Some(Bag::parse_bag_header(&header_buf, reader)?);
+                    bag_header = Some(Bag::<R, S>::parse_bag_header(&header_buf, reader)?);
                 }
                 OpCode::ChunkHeader => {
                     let chunk_header_pos = reader.stream_position()? - header_buf.len() as u64 - 4; // subtract header and header len
-                    let chunk_header = Bag::parse_chunk(&header_buf, reader, chunk_header_pos)?;
+                    let chunk_header = Bag::<R, S>::parse_chunk(&header_buf, reader, chunk_header_pos)?;
                     last_chunk_header_pos = Some(chunk_header_pos);
                     chunk_headers.push(chunk_header);
                 }
@@ -944,17 +938,17 @@ impl<R: Read + Seek> Bag<R> {
                         )))
                     })?;
                     let (connection_id, mut data) =
-                        Bag::parse_index(&header_buf, reader, chunk_header_pos)?;
+                        Bag::<R, S>::parse_index(&header_buf, reader, chunk_header_pos)?;
                     index_data
                         .entry(connection_id)
                         .or_insert_with(Vec::new)
                         .append(&mut data);
                 }
                 OpCode::ConnectionHeader => {
-                    connections.push(Bag::parse_connection(&header_buf, reader)?);
+                    connections.push(Bag::<R, S>::parse_connection(&header_buf, reader)?);
                 }
                 OpCode::ChunkInfoHeader => {
-                    chunk_infos.push(Bag::parse_chunk_info(&header_buf, reader)?);
+                    chunk_infos.push(Bag::<R, S>::parse_chunk_info(&header_buf, reader)?);
                 }
                 OpCode::MessageData => {
                     return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
@@ -1018,6 +1012,55 @@ impl<R: Read + Seek> Bag<R> {
             .map(|data| (data.connection_id, data))
             .collect();
         Ok((chunk_metadata, connection_data, index_data))
+    }
+}
+
+impl<R: Read + Seek> Bag<R, LoadedBag> {  
+    pub fn read_messages(&self, query: &Query) -> Result<BagIter<R, LoadedBag>, Error> {
+        BagIter::new(self, query)
+    }
+}
+
+impl<'a, R: Read + Seek> Bag<R, UnloadedBag> {  
+    pub fn load_message_data(mut self) -> Result<Bag<R, LoadedBag>, Error> {
+        //TODO: compressed bags, parallelization
+        for (chunk_loc, metadata) in self.chunk_metadata.iter() {
+            let mut buf = vec![0u8; metadata.compressed_size as usize];
+            self.reader
+                .seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))?;
+            self.reader.read_exact(&mut buf[..])?;
+
+            match metadata.compression.as_str() {
+                "none" => {
+                    self.chunk_bytes.insert(*chunk_loc, buf);
+                }
+                "lz4" => {
+                    // TODO: figure out what are these bytes I'm removing..
+                    let decompressed = lz4_flex::decompress(
+                        &buf[11..(buf.len() - 8)],
+                        metadata.uncompressed_size as usize,
+                    )?;
+                    self.chunk_bytes.insert(*chunk_loc, decompressed);
+                }
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unsupported compression: {}",
+                        other
+                    )))))
+                }
+            }
+        }
+        Ok(Bag{
+            file_path: self.file_path,
+            reader: self.reader,
+            version: self.version,
+            chunk_metadata: self.chunk_metadata,
+            chunk_bytes: self.chunk_bytes,
+            connection_data: self.connection_data,
+            index_data: self.index_data,
+            size: self.size,
+            marker_bag_state: PhantomData::<LoadedBag>,
+        })
     }
 }
 

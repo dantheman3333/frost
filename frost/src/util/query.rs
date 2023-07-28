@@ -3,7 +3,7 @@ use std::io::{Read, Seek};
 
 use crate::errors::Error;
 use crate::time::Time;
-use crate::{Bag, ConnectionID, IndexData, MessageDataHeader};
+use crate::{Bag, ConnectionID, IndexData, MessageDataHeader, LoadedBag, LoadedState};
 
 use super::{msgs::MessageView, parsing::parse_le_u32_at};
 
@@ -61,13 +61,14 @@ impl Default for Query {
     }
 }
 
-pub struct BagIter<'a, R: Read + Seek> {
-    bag: &'a Bag<R>,
+pub struct BagIter<'a, R: Read + Seek, LoadedBag: LoadedState> {
+    bag: &'a Bag<R, LoadedBag>,
     index_data: Vec<IndexData>,
     current_index: usize,
 }
-impl<'a, R: Read + Seek> BagIter<'a, R> {
-    pub(crate) fn new(bag: &'a mut Bag<R>, query: &Query) -> Result<Self, Error> {
+
+impl<'a, R: Read + Seek> BagIter<'a, R, LoadedBag> {
+    pub(crate) fn new(bag: &'a Bag<R, LoadedBag>, query: &Query) -> Result<Self, Error> {
         let topic_to_connection_ids = bag.topic_to_connection_ids();
         let ids_from_topics: HashSet<ConnectionID> = match &query.topics {
             Some(topics) => topics
@@ -117,8 +118,6 @@ impl<'a, R: Read + Seek> BagIter<'a, R> {
             .collect();
         index_data.sort_by(|a, b| a.time.cmp(&b.time));
 
-        bag.populate_chunk_bytes()?;
-
         Ok(BagIter {
             bag,
             index_data,
@@ -127,7 +126,7 @@ impl<'a, R: Read + Seek> BagIter<'a, R> {
     }
 }
 
-impl<'a, R: Read + Seek> Iterator for BagIter<'a, R> {
+impl<'a, R: Read + Seek> Iterator for BagIter<'a, R, LoadedBag> {
     type Item = MessageView<'a, R>;
 
     fn next(&mut self) -> Option<Self::Item> {

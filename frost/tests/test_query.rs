@@ -31,7 +31,7 @@ fn bag_iter_from_file() {
     .iter()
     {
         let (_tmp_dir, file_path) = write_test_fixture(bytes);
-        let mut bag = Bag::from(file_path).unwrap();
+        let mut bag = Bag::from_file(file_path).unwrap();
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();

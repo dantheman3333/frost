@@ -6,7 +6,7 @@ use bpaf::*;
 use itertools::Itertools;
 
 use frost::errors::Error;
-use frost::Bag;
+use frost::{Bag, LoadedState};
 
 #[derive(Clone, Debug)]
 enum Opts {
@@ -43,7 +43,7 @@ fn args() -> Opts {
     parser.to_options().version(env!("CARGO_PKG_VERSION")).run()
 }
 
-fn max_type_len(bag: &Bag<impl Read + Seek>) -> usize {
+fn max_type_len<S: LoadedState>(bag: &Bag<impl Read + Seek, S>) -> usize {
     bag.connection_data
         .values()
         .map(|d| d.data_type.len())
@@ -51,7 +51,7 @@ fn max_type_len(bag: &Bag<impl Read + Seek>) -> usize {
         .unwrap_or(0)
 }
 
-fn max_topic_len(bag: &Bag<impl Read + Seek>) -> usize {
+fn max_topic_len<S: LoadedState>(bag: &Bag<impl Read + Seek, S>) -> usize {
     bag.connection_data
         .values()
         .map(|d| d.topic.len())
@@ -59,14 +59,14 @@ fn max_topic_len(bag: &Bag<impl Read + Seek>) -> usize {
         .unwrap_or(0)
 }
 
-fn print_topics(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
+fn print_topics<S: LoadedState>(bag: &Bag<impl Read + Seek, S>, writer: &mut impl Write) -> Result<(), Error> {
     for topic in bag.topics().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
     Ok(())
 }
 
-fn print_types(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
+fn print_types<S: LoadedState>(bag: &Bag<impl Read + Seek, S>, writer: &mut impl Write) -> Result<(), Error> {
     for topic in bag.types().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
@@ -94,8 +94,8 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-fn print_all(
-    bag: &Bag<impl Read + Seek>,
+fn print_all<S: LoadedState>(
+    bag: &Bag<impl Read + Seek, S>,
     minimal: bool,
     writer: &mut impl Write,
 ) -> Result<(), Error> {
@@ -218,15 +218,15 @@ fn main() -> Result<(), Error> {
 
     match args {
         Opts::TopicOptions { file_path } => {
-            let bag = Bag::from(file_path)?;
+            let bag = Bag::from_file(file_path)?;
             print_topics(&bag, &mut writer)
         }
         Opts::InfoOptions { minimal, file_path } => {
-            let bag = Bag::from(file_path)?;
+            let bag = Bag::from_file(file_path)?;
             print_all(&bag, minimal, &mut writer)
         }
         Opts::TypeOptions { file_path } => {
-            let bag = Bag::from(file_path)?;
+            let bag = Bag::from_file(file_path)?;
             print_types(&bag, &mut writer)
         }
     }

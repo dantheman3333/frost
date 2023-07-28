@@ -6,13 +6,13 @@ use serde::de;
 use serde_rosmsg;
 
 use crate::errors::{Error, ErrorKind};
-use crate::{Bag, ChunkHeaderLoc};
+use crate::{Bag, ChunkHeaderLoc, LoadedBag};
 
 pub trait Msg {}
 
 pub struct MessageView<'a, R: Read + Seek> {
     pub topic: &'a str,
-    pub(crate) bag: &'a Bag<R>,
+    pub(crate) bag: &'a Bag<R, LoadedBag>,
     pub(crate) chunk_loc: ChunkHeaderLoc,
     pub(crate) start_index: usize,
     pub(crate) end_index: usize,

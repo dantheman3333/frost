@@ -95,7 +95,7 @@ When using it as a library, code-generation is required to convert ros .msg file
 See the full example and code-generation steps [here](examples/read_bag).
 
 ```rust
-  let mut bag = Bag::from(bag_path).unwrap();
+  let mut bag = Bag::from_file(bag_path).unwrap();
 
   let query = Query::all();
   let count = bag.read_messages(&query).unwrap().count();
