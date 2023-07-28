@@ -3,7 +3,7 @@ use std::io::{Read, Seek};
 
 use crate::errors::Error;
 use crate::time::Time;
-use crate::{Bag, ConnectionID, IndexData, MessageDataHeader, LoadedBag, LoadedState};
+use crate::{Bag, ConnectionID, IndexData, LoadedBag, LoadedState, MessageDataHeader};
 
 use super::{msgs::MessageView, parsing::parse_le_u32_at};
 

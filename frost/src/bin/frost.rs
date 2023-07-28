@@ -59,14 +59,20 @@ fn max_topic_len<S: LoadedState>(bag: &Bag<impl Read + Seek, S>) -> usize {
         .unwrap_or(0)
 }
 
-fn print_topics<S: LoadedState>(bag: &Bag<impl Read + Seek, S>, writer: &mut impl Write) -> Result<(), Error> {
+fn print_topics<S: LoadedState>(
+    bag: &Bag<impl Read + Seek, S>,
+    writer: &mut impl Write,
+) -> Result<(), Error> {
     for topic in bag.topics().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
     Ok(())
 }
 
-fn print_types<S: LoadedState>(bag: &Bag<impl Read + Seek, S>, writer: &mut impl Write) -> Result<(), Error> {
+fn print_types<S: LoadedState>(
+    bag: &Bag<impl Read + Seek, S>,
+    writer: &mut impl Write,
+) -> Result<(), Error> {
     for topic in bag.types().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
@@ -218,15 +224,15 @@ fn main() -> Result<(), Error> {
 
     match args {
         Opts::TopicOptions { file_path } => {
-            let bag = Bag::from_file(file_path)?;
+            let bag = Bag::from_file_lazy(file_path)?;
             print_topics(&bag, &mut writer)
         }
         Opts::InfoOptions { minimal, file_path } => {
-            let bag = Bag::from_file(file_path)?;
+            let bag = Bag::from_file_lazy(file_path)?;
             print_all(&bag, minimal, &mut writer)
         }
         Opts::TypeOptions { file_path } => {
-            let bag = Bag::from_file(file_path)?;
+            let bag = Bag::from_file_lazy(file_path)?;
             print_types(&bag, &mut writer)
         }
     }

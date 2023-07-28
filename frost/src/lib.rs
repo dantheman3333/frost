@@ -26,10 +26,10 @@ use util::time::Time;
 pub trait LoadedState {}
 #[derive(Debug, Default, Clone)]
 pub struct LoadedBag;
-impl LoadedState for LoadedBag{}
+impl LoadedState for LoadedBag {}
 #[derive(Debug, Default, Clone)]
 pub struct UnloadedBag;
-impl LoadedState for UnloadedBag{}
+impl LoadedState for UnloadedBag {}
 
 #[derive(Debug)]
 pub struct Bag<R: Read + Seek, S: LoadedState = UnloadedBag> {
@@ -41,7 +41,7 @@ pub struct Bag<R: Read + Seek, S: LoadedState = UnloadedBag> {
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
     pub size: u64,
-    marker_bag_state: PhantomData<S>
+    marker_bag_state: PhantomData<S>,
 }
 
 #[derive(Debug)]
@@ -635,7 +635,7 @@ impl MessageDataHeader {
     }
 }
 
-impl<S: LoadedState> Bag<BufReader<File>, S> {
+impl Bag<BufReader<File>> {
     pub fn from_file_lazy<P>(file_path: P) -> Result<Bag<BufReader<File>, UnloadedBag>, Error>
     where
         P: AsRef<Path> + Into<PathBuf>,
@@ -665,7 +665,7 @@ impl Bag<BufReader<File>> {
 }
 
 impl<'a> Bag<Cursor<&'a [u8]>> {
-    /// TODO: reading the message data when using byte slice as the source is totally unnecessary 
+    /// TODO: reading the message data when using byte slice as the source is totally unnecessary
     pub fn from_bytes_lazy(bytes: &'a [u8]) -> Result<Bag<Cursor<&[u8]>, UnloadedBag>, Error> {
         let reader = Cursor::new(bytes);
         let mut bag = Self::from_reader(reader)?;
@@ -686,7 +686,8 @@ impl<R: Read + Seek, S: LoadedState> Bag<R, S> {
     fn from_reader(mut reader: R) -> Result<Bag<R, UnloadedBag>, Error> {
         let version = version_check(&mut reader)?;
 
-        let (chunk_metadata, connection_data, index_data) = Bag::<R, S>::parse_records(&mut reader)?;
+        let (chunk_metadata, connection_data, index_data) =
+            Bag::<R, S>::parse_records(&mut reader)?;
 
         Ok(Bag {
             version,
@@ -927,7 +928,8 @@ impl<R: Read + Seek, S: LoadedState> Bag<R, S> {
                 }
                 OpCode::ChunkHeader => {
                     let chunk_header_pos = reader.stream_position()? - header_buf.len() as u64 - 4; // subtract header and header len
-                    let chunk_header = Bag::<R, S>::parse_chunk(&header_buf, reader, chunk_header_pos)?;
+                    let chunk_header =
+                        Bag::<R, S>::parse_chunk(&header_buf, reader, chunk_header_pos)?;
                     last_chunk_header_pos = Some(chunk_header_pos);
                     chunk_headers.push(chunk_header);
                 }
@@ -1015,13 +1017,13 @@ impl<R: Read + Seek, S: LoadedState> Bag<R, S> {
     }
 }
 
-impl<R: Read + Seek> Bag<R, LoadedBag> {  
+impl<R: Read + Seek> Bag<R, LoadedBag> {
     pub fn read_messages(&self, query: &Query) -> Result<BagIter<R, LoadedBag>, Error> {
         BagIter::new(self, query)
     }
 }
 
-impl<'a, R: Read + Seek> Bag<R, UnloadedBag> {  
+impl<'a, R: Read + Seek> Bag<R, UnloadedBag> {
     pub fn load_message_data(mut self) -> Result<Bag<R, LoadedBag>, Error> {
         //TODO: compressed bags, parallelization
         for (chunk_loc, metadata) in self.chunk_metadata.iter() {
@@ -1050,7 +1052,7 @@ impl<'a, R: Read + Seek> Bag<R, UnloadedBag> {
                 }
             }
         }
-        Ok(Bag{
+        Ok(Bag {
             file_path: self.file_path,
             reader: self.reader,
             version: self.version,
