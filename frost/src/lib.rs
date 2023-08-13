@@ -43,7 +43,7 @@ pub struct CompressionInfo {
 
 #[derive(Debug)]
 #[repr(u8)]
-pub enum OpCode {
+enum OpCode {
     BagHeader = 0x03,
     ChunkHeader = 0x05,
     ConnectionHeader = 0x07,
