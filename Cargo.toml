@@ -12,6 +12,6 @@ codegen-units = 1
 
 [workspace.dependencies]
 bpaf = "0.7.3"
-serde = "1.0.2"
+serde = { version = ">= 1.0, <= 1.0.171" }
 serde_rosmsg = "0.2.0"
 tempfile = "3.3.0"
