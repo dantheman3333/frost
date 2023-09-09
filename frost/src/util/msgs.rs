@@ -19,8 +19,8 @@ pub struct MessageView<'a, R: Read + Seek> {
 }
 
 impl<'a, R: Read + Seek> MessageView<'a, R> {
-    /// Returns the raw bytes of the entire ROS message
-    pub fn raw_bytes(&self) -> Result<&'a [u8], Error> {
+    /// Returns the raw bytes of the entire Chunk that holds the message
+    fn chunk_bytes(&self) -> Result<&'a [u8], Error> {
         self.bag
             .chunk_bytes
             .get(&self.chunk_loc)
@@ -32,13 +32,17 @@ impl<'a, R: Read + Seek> MessageView<'a, R> {
             })
     }
 
+    /// Returns the raw bytes of the entire ROS message
+    pub fn raw_bytes(&self) -> Result<&'a [u8], Error> {
+        Ok(&self.chunk_bytes()?[self.start_index..self.end_index])
+    }
+
     /// Turns a `MessageView` into a Rust struct
     pub fn instantiate<'de, T>(&self) -> Result<T, Error>
     where
         T: Msg,
         T: de::Deserialize<'de>,
     {
-        let bytes = self.raw_bytes()?;
-        serde_rosmsg::from_slice(&bytes[self.start_index..self.end_index]).map_err(|e| e.into())
+        serde_rosmsg::from_slice(&self.raw_bytes()?).map_err(|e| e.into())
     }
 }

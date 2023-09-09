@@ -288,7 +288,7 @@ fn get_mods_and_msgs(
 
             if abs_path.file_name().unwrap() == "package.xml" {
                 let Ok(package_name) = get_package_name(&abs_path) else {
-                    continue
+                    continue;
                 };
                 packages.insert(
                     abs_path.parent().unwrap().to_string_lossy().into_owned(),
