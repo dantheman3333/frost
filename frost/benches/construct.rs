@@ -13,8 +13,6 @@ const COMPRESSED_LZ4: &[u8] = include_bytes!("../tests/fixtures/compressed_lz4.b
 #[cfg(all(nightly, test))]
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use super::*;
     use frost::{query::Query, Bag};
     use test::Bencher;
