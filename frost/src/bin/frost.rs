@@ -224,16 +224,16 @@ fn main() -> Result<(), Error> {
 
     match args {
         Opts::TopicOptions { file_path } => {
-            let bag = BagMetadata::from_file(file_path)?;
-            print_topics(&bag, &mut writer)
+            let metadata = BagMetadata::from_file(file_path)?;
+            print_topics(&metadata, &mut writer)
         }
         Opts::InfoOptions { minimal, file_path } => {
-            let bag = BagMetadata::from_file(file_path)?;
-            print_all(&bag, minimal, &mut writer)
+            let metadata = BagMetadata::from_file(file_path)?;
+            print_all(&metadata, minimal, &mut writer)
         }
         Opts::TypeOptions { file_path } => {
-            let bag = BagMetadata::from_file(file_path)?;
-            print_types(&bag, &mut writer)
+            let metadata = BagMetadata::from_file(file_path)?;
+            print_types(&metadata, &mut writer)
         }
     }
 }
