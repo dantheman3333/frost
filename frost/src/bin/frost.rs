@@ -1,12 +1,12 @@
 use std::collections::HashSet;
-use std::io::{BufWriter, Read, Seek, Write};
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
 use bpaf::*;
 use itertools::Itertools;
 
 use frost::errors::Error;
-use frost::Bag;
+use frost::BagMetadata;
 
 #[derive(Clone, Debug)]
 enum Opts {
@@ -43,31 +43,33 @@ fn args() -> Opts {
     parser.to_options().version(env!("CARGO_PKG_VERSION")).run()
 }
 
-fn max_type_len(bag: &Bag<impl Read + Seek>) -> usize {
-    bag.connection_data
+fn max_type_len(metadata: &BagMetadata) -> usize {
+    metadata
+        .connection_data
         .values()
         .map(|d| d.data_type.len())
         .max()
         .unwrap_or(0)
 }
 
-fn max_topic_len(bag: &Bag<impl Read + Seek>) -> usize {
-    bag.connection_data
+fn max_topic_len(metadata: &BagMetadata) -> usize {
+    metadata
+        .connection_data
         .values()
         .map(|d| d.topic.len())
         .max()
         .unwrap_or(0)
 }
 
-fn print_topics(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
-    for topic in bag.topics().into_iter().sorted() {
+fn print_topics(metadata: &BagMetadata, writer: &mut impl Write) -> Result<(), Error> {
+    for topic in metadata.topics().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
     Ok(())
 }
 
-fn print_types(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
-    for topic in bag.types().into_iter().sorted() {
+fn print_types(metadata: &BagMetadata, writer: &mut impl Write) -> Result<(), Error> {
+    for topic in metadata.types().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
     Ok(())
@@ -94,27 +96,31 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-fn print_all(
-    bag: &Bag<impl Read + Seek>,
-    minimal: bool,
-    writer: &mut impl Write,
-) -> Result<(), Error> {
-    let start_time = bag.start_time().expect("Bag does not have a start time");
-    let end_time = bag.end_time().expect("Bag does not have a end time");
+fn print_all(metadata: &BagMetadata, minimal: bool, writer: &mut impl Write) -> Result<(), Error> {
+    let start_time = metadata
+        .start_time()
+        .expect("Bag does not have a start time");
+    let end_time = metadata.end_time().expect("Bag does not have a end time");
 
     writer.write_all(
         format!(
             "{0: <13}{1}\n",
             "path:",
-            bag.file_path
+            metadata
+                .file_path
                 .as_ref()
                 .map_or_else(|| "None".to_string(), |p| p.to_string_lossy().into_owned())
         )
         .as_bytes(),
     )?;
-    writer.write_all(format!("{0: <13}{1}\n", "version:", bag.version).as_bytes())?;
+    writer.write_all(format!("{0: <13}{1}\n", "version:", metadata.version).as_bytes())?;
     writer.write_all(
-        format!("{0: <13}{1:.2}s\n", "duration:", bag.duration().as_secs()).as_bytes(),
+        format!(
+            "{0: <13}{1:.2}s\n",
+            "duration:",
+            metadata.duration().as_secs()
+        )
+        .as_bytes(),
     )?;
     writer.write_all(
         format!(
@@ -135,11 +141,11 @@ fn print_all(
         .as_bytes(),
     )?;
 
-    writer.write_all(format!("{0: <13}{1}\n", "size:", human_bytes(bag.size)).as_bytes())?;
+    writer.write_all(format!("{0: <13}{1}\n", "size:", human_bytes(metadata.size)).as_bytes())?;
 
-    writer.write_all(format!("{0: <13}{1}\n", "messages:", bag.message_count()).as_bytes())?;
+    writer.write_all(format!("{0: <13}{1}\n", "messages:", metadata.message_count()).as_bytes())?;
 
-    let compression_info = bag.compression_info();
+    let compression_info = metadata.compression_info();
 
     let total_chunks: usize = compression_info.iter().map(|info| info.chunk_count).sum();
     let max_compression_name = compression_info
@@ -166,8 +172,8 @@ fn print_all(
         return Ok(());
     }
 
-    let max_type_len = max_type_len(bag);
-    for (i, (data_type, md5sum)) in bag
+    let max_type_len = max_type_len(metadata);
+    for (i, (data_type, md5sum)) in metadata
         .connection_data
         .values()
         .map(|data| (data.data_type.clone(), data.md5sum.clone()))
@@ -186,11 +192,11 @@ fn print_all(
         )?;
     }
 
-    let max_topic_len = max_topic_len(bag);
+    let max_topic_len = max_topic_len(metadata);
 
-    let topic_counts = bag.topic_message_counts();
+    let topic_counts = metadata.topic_message_counts();
 
-    for (i, (topic, data_type)) in bag
+    for (i, (topic, data_type)) in metadata
         .topics_and_types()
         .into_iter()
         .sorted_by(|a, b| Ord::cmp(&a.0, &b.0))
@@ -218,16 +224,16 @@ fn main() -> Result<(), Error> {
 
     match args {
         Opts::TopicOptions { file_path } => {
-            let bag = Bag::from(file_path)?;
-            print_topics(&bag, &mut writer)
+            let metadata = BagMetadata::from_file(file_path)?;
+            print_topics(&metadata, &mut writer)
         }
         Opts::InfoOptions { minimal, file_path } => {
-            let bag = Bag::from(file_path)?;
-            print_all(&bag, minimal, &mut writer)
+            let metadata = BagMetadata::from_file(file_path)?;
+            print_all(&metadata, minimal, &mut writer)
         }
         Opts::TypeOptions { file_path } => {
-            let bag = Bag::from(file_path)?;
-            print_types(&bag, &mut writer)
+            let metadata = BagMetadata::from_file(file_path)?;
+            print_types(&metadata, &mut writer)
         }
     }
 }

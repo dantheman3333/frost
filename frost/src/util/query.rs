@@ -1,9 +1,8 @@
 use std::collections::HashSet;
-use std::io::{Read, Seek};
 
 use crate::errors::Error;
 use crate::time::Time;
-use crate::{Bag, ConnectionID, IndexData, MessageDataHeader};
+use crate::{ConnectionID, DecompressedBag, IndexData, MessageDataHeader};
 
 use super::{msgs::MessageView, parsing::parse_le_u32_at};
 
@@ -61,14 +60,14 @@ impl Default for Query {
     }
 }
 
-pub struct BagIter<'a, R: Read + Seek> {
-    bag: &'a Bag<R>,
+pub struct BagIter<'a> {
+    bag: &'a DecompressedBag,
     index_data: Vec<IndexData>,
     current_index: usize,
 }
-impl<'a, R: Read + Seek> BagIter<'a, R> {
-    pub(crate) fn new(bag: &'a mut Bag<R>, query: &Query) -> Result<Self, Error> {
-        let topic_to_connection_ids = bag.topic_to_connection_ids();
+impl<'a> BagIter<'a> {
+    pub(crate) fn new(bag: &'a DecompressedBag, query: &Query) -> Result<Self, Error> {
+        let topic_to_connection_ids = bag.metadata.topic_to_connection_ids();
         let ids_from_topics: HashSet<ConnectionID> = match &query.topics {
             Some(topics) => topics
                 .iter()
@@ -81,7 +80,7 @@ impl<'a, R: Read + Seek> BagIter<'a, R> {
                 .cloned()
                 .collect(),
         };
-        let types_to_connection_ids = bag.type_to_connection_ids();
+        let types_to_connection_ids = bag.metadata.type_to_connection_ids();
         let ids_from_types: HashSet<ConnectionID> = match &query.types {
             Some(types) => types
                 .iter()
@@ -100,7 +99,7 @@ impl<'a, R: Read + Seek> BagIter<'a, R> {
             .collect();
         let mut index_data: Vec<IndexData> = ids
             .iter()
-            .flat_map(|id| bag.index_data.get(id).unwrap().clone())
+            .flat_map(|id| bag.metadata.index_data.get(id).unwrap().clone())
             .filter(|data| {
                 if let Some(start_time) = query.start_time {
                     if data.time < start_time {
@@ -117,8 +116,6 @@ impl<'a, R: Read + Seek> BagIter<'a, R> {
             .collect();
         index_data.sort_by(|a, b| a.time.cmp(&b.time));
 
-        bag.populate_chunk_bytes()?;
-
         Ok(BagIter {
             bag,
             index_data,
@@ -127,8 +124,8 @@ impl<'a, R: Read + Seek> BagIter<'a, R> {
     }
 }
 
-impl<'a, R: Read + Seek> Iterator for BagIter<'a, R> {
-    type Item = MessageView<'a, R>;
+impl<'a> Iterator for BagIter<'a> {
+    type Item = MessageView<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.current_index >= self.index_data.len() {
@@ -136,7 +133,13 @@ impl<'a, R: Read + Seek> Iterator for BagIter<'a, R> {
         } else {
             let data = self.index_data.get(self.current_index)?;
 
-            let topic = &self.bag.connection_data.get(&data.conn_id).unwrap().topic;
+            let topic = &self
+                .bag
+                .metadata
+                .connection_data
+                .get(&data.conn_id)
+                .unwrap()
+                .topic;
 
             let chunk_bytes = self.bag.chunk_bytes.get(&data.chunk_header_pos)?;
 

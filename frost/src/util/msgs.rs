@@ -1,24 +1,23 @@
 use std::borrow::Cow;
-use std::io::{Read, Seek};
 
 use serde;
 use serde::de;
 use serde_rosmsg;
 
 use crate::errors::{Error, ErrorKind};
-use crate::{Bag, ChunkHeaderLoc};
+use crate::{ChunkHeaderLoc, DecompressedBag};
 
 pub trait Msg {}
 
-pub struct MessageView<'a, R: Read + Seek> {
+pub struct MessageView<'a> {
     pub topic: &'a str,
-    pub(crate) bag: &'a Bag<R>,
+    pub(crate) bag: &'a DecompressedBag,
     pub(crate) chunk_loc: ChunkHeaderLoc,
     pub(crate) start_index: usize,
     pub(crate) end_index: usize,
 }
 
-impl<'a, R: Read + Seek> MessageView<'a, R> {
+impl<'a> MessageView<'a> {
     /// Returns the raw bytes of the entire Chunk that holds the message
     fn chunk_bytes(&self) -> Result<&'a [u8], Error> {
         self.bag
@@ -43,6 +42,6 @@ impl<'a, R: Read + Seek> MessageView<'a, R> {
         T: Msg,
         T: de::Deserialize<'de>,
     {
-        serde_rosmsg::from_slice(&self.raw_bytes()?).map_err(|e| e.into())
+        serde_rosmsg::from_slice(self.raw_bytes()?).map_err(|e| e.into())
     }
 }
