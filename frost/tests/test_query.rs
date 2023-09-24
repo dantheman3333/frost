@@ -1,7 +1,7 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
 use frost::query::Query;
-use frost::Bag;
+use frost::BagMetadata;
 use frost::{errors::ErrorKind, DecompressedBag};
 
 use tempfile::{tempdir, TempDir};
@@ -32,28 +32,6 @@ fn bag_iter_from_file() {
     {
         let (_tmp_dir, file_path) = write_test_fixture(bytes);
         let bag = DecompressedBag::from_file(file_path).unwrap();
-
-        let query = Query::all();
-        let count = bag.read_messages(&query).unwrap().count();
-        assert_eq!(count, 300, "{name}");
-
-        let query = Query::new().with_topics(&["/chatter"]);
-        let count = bag.read_messages(&query).unwrap().count();
-        assert_eq!(count, 100, "{name}");
-    }
-}
-
-#[test]
-fn bag_iter_from_file_decompression() {
-    for (bytes, name) in [
-        (DECOMPRESSED, "decompressed"),
-        (COMPRESSED_LZ4, "compressed_lz4"),
-    ]
-    .iter()
-    {
-        let (_tmp_dir, file_path) = write_test_fixture(bytes);
-        let bag = Bag::from_file(file_path).unwrap();
-        let bag = bag.decompress().unwrap();
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();

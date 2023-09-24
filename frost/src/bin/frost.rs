@@ -1,12 +1,12 @@
 use std::collections::HashSet;
-use std::io::{BufWriter, Read, Seek, Write};
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
 use bpaf::*;
 use itertools::Itertools;
 
 use frost::errors::Error;
-use frost::Bag;
+use frost::BagMetadata;
 
 #[derive(Clone, Debug)]
 enum Opts {
@@ -43,7 +43,7 @@ fn args() -> Opts {
     parser.to_options().version(env!("CARGO_PKG_VERSION")).run()
 }
 
-fn max_type_len(bag: &Bag<impl Read + Seek>) -> usize {
+fn max_type_len(bag: &BagMetadata) -> usize {
     bag.connection_data
         .values()
         .map(|d| d.data_type.len())
@@ -51,7 +51,7 @@ fn max_type_len(bag: &Bag<impl Read + Seek>) -> usize {
         .unwrap_or(0)
 }
 
-fn max_topic_len(bag: &Bag<impl Read + Seek>) -> usize {
+fn max_topic_len(bag: &BagMetadata) -> usize {
     bag.connection_data
         .values()
         .map(|d| d.topic.len())
@@ -59,14 +59,14 @@ fn max_topic_len(bag: &Bag<impl Read + Seek>) -> usize {
         .unwrap_or(0)
 }
 
-fn print_topics(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
+fn print_topics(bag: &BagMetadata, writer: &mut impl Write) -> Result<(), Error> {
     for topic in bag.topics().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
     Ok(())
 }
 
-fn print_types(bag: &Bag<impl Read + Seek>, writer: &mut impl Write) -> Result<(), Error> {
+fn print_types(bag: &BagMetadata, writer: &mut impl Write) -> Result<(), Error> {
     for topic in bag.types().into_iter().sorted() {
         writer.write_all(format!("{topic}\n").as_bytes())?
     }
@@ -94,11 +94,7 @@ fn human_bytes(bytes: u64) -> String {
     }
 }
 
-fn print_all(
-    bag: &Bag<impl Read + Seek>,
-    minimal: bool,
-    writer: &mut impl Write,
-) -> Result<(), Error> {
+fn print_all(bag: &BagMetadata, minimal: bool, writer: &mut impl Write) -> Result<(), Error> {
     let start_time = bag.start_time().expect("Bag does not have a start time");
     let end_time = bag.end_time().expect("Bag does not have a end time");
 
@@ -218,15 +214,15 @@ fn main() -> Result<(), Error> {
 
     match args {
         Opts::TopicOptions { file_path } => {
-            let bag = Bag::from_file(file_path)?;
+            let bag = BagMetadata::from_file(file_path)?;
             print_topics(&bag, &mut writer)
         }
         Opts::InfoOptions { minimal, file_path } => {
-            let bag = Bag::from_file(file_path)?;
+            let bag = BagMetadata::from_file(file_path)?;
             print_all(&bag, minimal, &mut writer)
         }
         Opts::TypeOptions { file_path } => {
-            let bag = Bag::from_file(file_path)?;
+            let bag = BagMetadata::from_file(file_path)?;
             print_types(&bag, &mut writer)
         }
     }

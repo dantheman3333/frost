@@ -67,7 +67,7 @@ pub struct BagIter<'a> {
 }
 impl<'a> BagIter<'a> {
     pub(crate) fn new(bag: &'a DecompressedBag, query: &Query) -> Result<Self, Error> {
-        let topic_to_connection_ids = bag.topic_to_connection_ids();
+        let topic_to_connection_ids = bag.metadata.topic_to_connection_ids();
         let ids_from_topics: HashSet<ConnectionID> = match &query.topics {
             Some(topics) => topics
                 .iter()
@@ -80,7 +80,7 @@ impl<'a> BagIter<'a> {
                 .cloned()
                 .collect(),
         };
-        let types_to_connection_ids = bag.type_to_connection_ids();
+        let types_to_connection_ids = bag.metadata.type_to_connection_ids();
         let ids_from_types: HashSet<ConnectionID> = match &query.types {
             Some(types) => types
                 .iter()
@@ -99,7 +99,7 @@ impl<'a> BagIter<'a> {
             .collect();
         let mut index_data: Vec<IndexData> = ids
             .iter()
-            .flat_map(|id| bag.index_data.get(id).unwrap().clone())
+            .flat_map(|id| bag.metadata.index_data.get(id).unwrap().clone())
             .filter(|data| {
                 if let Some(start_time) = query.start_time {
                     if data.time < start_time {
@@ -133,7 +133,13 @@ impl<'a> Iterator for BagIter<'a> {
         } else {
             let data = self.index_data.get(self.current_index)?;
 
-            let topic = &self.bag.connection_data.get(&data.conn_id).unwrap().topic;
+            let topic = &self
+                .bag
+                .metadata
+                .connection_data
+                .get(&data.conn_id)
+                .unwrap()
+                .topic;
 
             let chunk_bytes = self.bag.chunk_bytes.get(&data.chunk_header_pos)?;
 

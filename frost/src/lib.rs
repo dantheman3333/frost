@@ -22,9 +22,8 @@ mod util;
 use util::query::{BagIter, Query};
 use util::time::Time;
 
-pub struct Bag<R: Read + Seek> {
+pub struct BagMetadata {
     pub file_path: Option<PathBuf>,
-    reader: R,
     pub version: String,
     pub(crate) chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
@@ -33,12 +32,8 @@ pub struct Bag<R: Read + Seek> {
 }
 
 pub struct DecompressedBag {
-    pub file_path: Option<PathBuf>,
-    pub version: String,
-    pub(crate) chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
+    pub metadata: BagMetadata,
     pub(crate) chunk_bytes: BTreeMap<ChunkHeaderLoc, Vec<u8>>,
-    pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
-    pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
 }
 
 #[derive(Debug)]
@@ -631,7 +626,7 @@ impl MessageDataHeader {
     }
 }
 
-impl Bag<BufReader<File>> {
+impl BagMetadata {
     pub fn from_file<P>(file_path: P) -> Result<Self, Error>
     where
         P: AsRef<Path> + Into<PathBuf>,
@@ -647,40 +642,49 @@ impl Bag<BufReader<File>> {
         bag.size = file_size;
         Ok(bag)
     }
-}
 
-impl<'a> Bag<Cursor<&'a [u8]>> {
-    pub fn from_bytes(bytes: &'a [u8]) -> Result<Self, Error> {
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let reader = Cursor::new(bytes);
         let mut bag = Self::from_reader(reader)?;
         bag.size = bytes.len() as u64;
         Ok(bag)
     }
-}
 
-impl<R: Read + Seek> Bag<R> {
-    fn from_reader(mut reader: R) -> Result<Bag<R>, Error> {
+    fn from_reader<R: Read + Seek>(mut reader: R) -> Result<BagMetadata, Error> {
         let version = version_check(&mut reader)?;
 
         let (chunk_metadata, connection_data, index_data) = parse_records(&mut reader)?;
 
-        Ok(Bag {
+        Ok(BagMetadata {
             version,
             file_path: None,
-            reader,
             chunk_metadata,
             connection_data,
             index_data,
-            size: 0, // will be set in constructor
+            size: 0,
         })
     }
 
     fn topic_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
-        topic_to_connection_ids(&self.connection_data)
+        self.connection_data
+            .values()
+            .fold(BTreeMap::new(), |mut acc, data| {
+                acc.entry(data.topic.clone())
+                    .or_default()
+                    .push(data.connection_id);
+                acc
+            })
     }
 
     fn type_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
-        type_to_connection_ids(&self.connection_data)
+        self.connection_data
+            .values()
+            .fold(BTreeMap::new(), |mut acc, data| {
+                acc.entry(data.data_type.clone())
+                    .or_default()
+                    .push(data.connection_id);
+                acc
+            })
     }
 
     pub fn start_time(&self) -> Option<Time> {
@@ -762,23 +766,6 @@ impl<R: Read + Seek> Bag<R> {
             .values()
             .map(|data| data.data_type.as_str())
             .collect()
-    }
-
-    /// Constructs a `DecompressedBag`, which can be used to scan messages
-    pub fn decompress(mut self) -> Result<DecompressedBag, Error> {
-        self.reader.seek(io::SeekFrom::Start(0))?;
-        let mut buf = Vec::new();
-        self.reader.read_to_end(&mut buf)?;
-        let chunk_bytes = populate_chunk_bytes(&self.chunk_metadata, &buf)?;
-
-        Ok(DecompressedBag {
-            file_path: self.file_path,
-            version: self.version,
-            chunk_metadata: self.chunk_metadata,
-            chunk_bytes,
-            connection_data: self.connection_data,
-            index_data: self.index_data,
-        })
     }
 }
 
@@ -865,32 +852,6 @@ fn parse_index<R: Read + Seek>(
     }
 
     Ok((index_data_header.connection_id, index_data))
-}
-
-fn topic_to_connection_ids(
-    connection_data: &BTreeMap<ConnectionID, ConnectionData>,
-) -> BTreeMap<String, Vec<ConnectionID>> {
-    connection_data
-        .values()
-        .fold(BTreeMap::new(), |mut acc, data| {
-            acc.entry(data.topic.clone())
-                .or_default()
-                .push(data.connection_id);
-            acc
-        })
-}
-
-fn type_to_connection_ids(
-    connection_data: &BTreeMap<ConnectionID, ConnectionData>,
-) -> BTreeMap<String, Vec<ConnectionID>> {
-    connection_data
-        .values()
-        .fold(BTreeMap::new(), |mut acc, data| {
-            acc.entry(data.data_type.clone())
-                .or_default()
-                .push(data.connection_id);
-            acc
-        })
 }
 
 fn parse_records<R: Read + Seek>(
@@ -1052,12 +1013,15 @@ impl DecompressedBag {
         let chunk_bytes = populate_chunk_bytes(&chunk_metadata, bytes)?;
 
         Ok(DecompressedBag {
-            version,
-            file_path: None,
-            chunk_metadata,
+            metadata: BagMetadata {
+                version,
+                file_path: None,
+                chunk_metadata,
+                connection_data,
+                index_data,
+                size: bytes.len() as u64,
+            },
             chunk_bytes,
-            connection_data,
-            index_data,
         })
     }
 
@@ -1074,21 +1038,13 @@ impl DecompressedBag {
         reader.read_to_end(&mut bytes)?;
 
         let mut bag = Self::from_bytes(&bytes)?;
-        bag.file_path = Some(path);
+        bag.metadata.file_path = Some(path);
 
         Ok(bag)
     }
 
     pub fn read_messages(&self, query: &Query) -> Result<BagIter, Error> {
         BagIter::new(self, query)
-    }
-
-    fn topic_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
-        topic_to_connection_ids(&self.connection_data)
-    }
-
-    fn type_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
-        type_to_connection_ids(&self.connection_data)
     }
 }
 
