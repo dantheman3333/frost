@@ -1,6 +1,6 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
-use frost::errors::ErrorKind;
+use frost::{errors::ErrorKind, DecompressedBag};
 use frost::query::Query;
 use frost::Bag;
 
@@ -31,7 +31,7 @@ fn bag_iter_from_file() {
     .iter()
     {
         let (_tmp_dir, file_path) = write_test_fixture(bytes);
-        let mut bag = Bag::from(file_path).unwrap();
+        let mut bag = DecompressedBag::from_file(file_path).unwrap();
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();
@@ -51,7 +51,7 @@ fn bag_iter_from_bytes() {
     ]
     .iter()
     {
-        let mut bag = Bag::from_bytes(bytes).unwrap();
+        let mut bag = DecompressedBag::from_bytes(bytes.to_vec()).unwrap();
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();
@@ -104,7 +104,7 @@ fn msg_reading() {
     ]
     .iter()
     {
-        let mut bag = Bag::from_bytes(bytes).unwrap();
+        let mut bag = DecompressedBag::from_bytes(bytes.to_vec()).unwrap();
 
         let query = Query::new().with_topics(&["/chatter"]);
 
@@ -143,7 +143,7 @@ fn msg_reading_wrong_type() {
     ]
     .iter()
     {
-        let mut bag = Bag::from_bytes(bytes).unwrap();
+        let mut bag = DecompressedBag::from_bytes(bytes.to_vec()).unwrap();
 
         let query = Query::new().with_topics(&["/chatter"]);
         let msg_view = bag.read_messages(&query).unwrap().last().unwrap();

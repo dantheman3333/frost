@@ -27,13 +27,12 @@ pub struct Bag<R: Read + Seek> {
     reader: R,
     pub version: String,
     pub(crate) chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
-    pub(crate) chunk_bytes: BTreeMap<ChunkHeaderLoc, Vec<u8>>,
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
     pub size: u64,
 }
 
-pub struct BagOwned {
+pub struct DecompressedBag {
     pub file_path: Option<PathBuf>,
     pub version: String,
     pub(crate) bag_bytes: Vec<u8>,
@@ -672,7 +671,6 @@ impl<R: Read + Seek> Bag<R> {
             file_path: None,
             reader,
             chunk_metadata,
-            chunk_bytes: BTreeMap::new(),
             connection_data,
             index_data,
             size: 0, // will be set in constructor
@@ -680,29 +678,11 @@ impl<R: Read + Seek> Bag<R> {
     }
 
     fn topic_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
-        self.connection_data
-            .values()
-            .fold(BTreeMap::new(), |mut acc, data| {
-                acc.entry(data.topic.clone())
-                    .or_default()
-                    .push(data.connection_id);
-                acc
-            })
+        topic_to_connection_ids(&self.connection_data)
     }
 
     fn type_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
-        self.connection_data
-            .values()
-            .fold(BTreeMap::new(), |mut acc, data| {
-                acc.entry(data.data_type.clone())
-                    .or_default()
-                    .push(data.connection_id);
-                acc
-            })
-    }
-
-    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter<R>, Error> {
-        BagIter::new(self, query)
+        type_to_connection_ids(&self.connection_data)
     }
 
     pub fn start_time(&self) -> Option<Time> {
@@ -786,41 +766,7 @@ impl<R: Read + Seek> Bag<R> {
             .collect()
     }
 
-    pub(crate) fn populate_chunk_bytes(&mut self) -> Result<(), Error> {
-        if !self.chunk_bytes.is_empty() {
-            return Ok(());
-        }
-
-        //TODO: compressed bags, parallelization
-        for (chunk_loc, metadata) in self.chunk_metadata.iter() {
-            let mut buf = vec![0u8; metadata.compressed_size as usize];
-            self.reader
-                .seek(std::io::SeekFrom::Start(metadata.chunk_data_pos))?;
-            self.reader.read_exact(&mut buf[..])?;
-
-            match metadata.compression.as_str() {
-                "none" => {
-                    self.chunk_bytes.insert(*chunk_loc, buf);
-                }
-                "lz4" => {
-                    // TODO: figure out what are these bytes I'm removing..
-                    let decompressed = lz4_flex::decompress(
-                        &buf[11..(buf.len() - 8)],
-                        metadata.uncompressed_size as usize,
-                    )?;
-                    self.chunk_bytes.insert(*chunk_loc, decompressed);
-                }
-                other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unsupported compression: {}",
-                        other
-                    )))))
-                }
-            }
-        }
-        Ok(())
-    }
-
+    
 }
 
 fn parse_bag_header<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> Result<BagHeader, Error> {
@@ -904,6 +850,28 @@ fn parse_index<R: Read + Seek>(
     }
 
     Ok((index_data_header.connection_id, index_data))
+}
+
+fn topic_to_connection_ids(connection_data: &BTreeMap<ConnectionID, ConnectionData>,) -> BTreeMap<String, Vec<ConnectionID>> {
+    connection_data
+        .values()
+        .fold(BTreeMap::new(), |mut acc, data| {
+            acc.entry(data.topic.clone())
+                .or_default()
+                .push(data.connection_id);
+            acc
+        })
+}
+
+fn type_to_connection_ids(connection_data: &BTreeMap<ConnectionID, ConnectionData>) -> BTreeMap<String, Vec<ConnectionID>> {
+    connection_data
+        .values()
+        .fold(BTreeMap::new(), |mut acc, data| {
+            acc.entry(data.data_type.clone())
+                .or_default()
+                .push(data.connection_id);
+            acc
+        })
 }
 
 fn parse_records<R: Read + Seek>(
@@ -1054,7 +1022,7 @@ fn read_header_op(buf: &[u8]) -> Result<OpCode, Error> {
     ))))
 }
 
-impl BagOwned {
+impl DecompressedBag {
     /// Creates a bag from a vector of bytes.
     /// Takes Ownership of the bytes.
     pub fn from_bytes(bytes: Vec<u8>) -> Result<Self, Error> {
@@ -1064,12 +1032,14 @@ impl BagOwned {
         let (chunk_metadata, connection_data, index_data) = parse_records(&mut reader)?;
         let num_bytes = bytes.len() as u64;
         
-        Ok(BagOwned {
+        let chunk_bytes = DecompressedBag::populate_chunk_bytes(&chunk_metadata, &bytes)?;
+
+        Ok(DecompressedBag {
             version,
             file_path: None,
             bag_bytes: bytes,
             chunk_metadata,
-            chunk_bytes: BTreeMap::new(),
+            chunk_bytes,
             connection_data,
             index_data,
             size: num_bytes,
@@ -1092,6 +1062,49 @@ impl BagOwned {
         bag.file_path = Some(path);
 
         Ok(bag)        
+    }
+
+    fn populate_chunk_bytes<'a>(chunk_metadata: &BTreeMap<u64, ChunkMetadata>, bag_bytes: &'a[u8]) -> Result<BTreeMap<ChunkHeaderLoc, Vec<u8>>, Error> {
+        let mut chunk_bytes = BTreeMap::new();
+        //TODO: parallelization
+        for (chunk_loc, metadata) in chunk_metadata.iter() {
+            let chunk_start = metadata.chunk_data_pos as usize;
+            let chunk_end = chunk_start + metadata.compressed_size as usize;
+            let buf = &bag_bytes[chunk_start..chunk_end];
+         
+            match metadata.compression.as_str() {
+                "none" => {
+                    chunk_bytes.insert(*chunk_loc, buf.to_vec());
+                }
+                "lz4" => {
+                    // TODO: figure out what are these bytes I'm removing..
+                    let decompressed = lz4_flex::decompress(
+                        &buf[11..(buf.len() - 8)],
+                        metadata.uncompressed_size as usize,
+                    )?;
+                    chunk_bytes.insert(*chunk_loc, decompressed);
+                }
+                other => {
+                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                        "unsupported compression: {}",
+                        other
+                    )))))
+                }
+            }
+        }
+        Ok(chunk_bytes)
+    }
+
+    pub fn read_messages(&mut self, query: &Query) -> Result<BagIter, Error> {
+        BagIter::new(self, query)
+    }
+
+    fn topic_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
+        topic_to_connection_ids(&self.connection_data)
+    }
+
+    fn type_to_connection_ids(&self) -> BTreeMap<String, Vec<ConnectionID>> {
+        type_to_connection_ids(&self.connection_data)
     }
 }
 

@@ -2,7 +2,7 @@ use std::f32::consts::PI;
 use std::{fs::File, io::Write, path::PathBuf};
 
 use frost::query::Query;
-use frost::Bag;
+use frost::DecompressedBag;
 use tempfile::{tempdir, TempDir};
 
 include!(concat!(env!("OUT_DIR"), "/msgs.rs"));
@@ -24,7 +24,7 @@ fn main() {
     let tmp_dir = tempdir().unwrap();
     let bag_path = setup_fixture(&tmp_dir);
 
-    let mut bag = Bag::from(bag_path).unwrap();
+    let mut bag = DecompressedBag::from_file(bag_path).unwrap();
 
     let query = Query::all();
     let count = bag.read_messages(&query).unwrap().count();
