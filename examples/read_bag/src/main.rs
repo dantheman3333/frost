@@ -24,7 +24,7 @@ fn main() {
     let tmp_dir = tempdir().unwrap();
     let bag_path = setup_fixture(&tmp_dir);
 
-    let mut bag = DecompressedBag::from_file(bag_path).unwrap();
+    let bag = DecompressedBag::from_file(bag_path).unwrap();
 
     let query = Query::all();
     let count = bag.read_messages(&query).unwrap().count();

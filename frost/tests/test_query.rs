@@ -1,5 +1,6 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
+use frost::Bag;
 use frost::query::Query;
 use frost::{errors::ErrorKind, DecompressedBag};
 
@@ -30,7 +31,29 @@ fn bag_iter_from_file() {
     .iter()
     {
         let (_tmp_dir, file_path) = write_test_fixture(bytes);
-        let mut bag = DecompressedBag::from_file(file_path).unwrap();
+        let bag = DecompressedBag::from_file(file_path).unwrap();
+
+        let query = Query::all();
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 300, "{name}");
+
+        let query = Query::new().with_topics(&["/chatter"]);
+        let count = bag.read_messages(&query).unwrap().count();
+        assert_eq!(count, 100, "{name}");
+    }
+}
+
+#[test]
+fn bag_iter_from_file_decompression() {
+    for (bytes, name) in [
+        (DECOMPRESSED, "decompressed"),
+        (COMPRESSED_LZ4, "compressed_lz4"),
+    ]
+    .iter()
+    {
+        let (_tmp_dir, file_path) = write_test_fixture(bytes);
+        let bag = Bag::from_file(file_path).unwrap();
+        let bag = bag.decompress().unwrap();
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();
@@ -50,7 +73,7 @@ fn bag_iter_from_bytes() {
     ]
     .iter()
     {
-        let mut bag = DecompressedBag::from_bytes(bytes.to_vec()).unwrap();
+        let bag = DecompressedBag::from_bytes(bytes).unwrap();
 
         let query = Query::all();
         let count = bag.read_messages(&query).unwrap().count();
@@ -103,7 +126,7 @@ fn msg_reading() {
     ]
     .iter()
     {
-        let mut bag = DecompressedBag::from_bytes(bytes.to_vec()).unwrap();
+        let bag = DecompressedBag::from_bytes(bytes).unwrap();
 
         let query = Query::new().with_topics(&["/chatter"]);
 
@@ -142,7 +165,7 @@ fn msg_reading_wrong_type() {
     ]
     .iter()
     {
-        let mut bag = DecompressedBag::from_bytes(bytes.to_vec()).unwrap();
+        let bag = DecompressedBag::from_bytes(bytes).unwrap();
 
         let query = Query::new().with_topics(&["/chatter"]);
         let msg_view = bag.read_messages(&query).unwrap().last().unwrap();

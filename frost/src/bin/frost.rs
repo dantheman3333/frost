@@ -218,15 +218,15 @@ fn main() -> Result<(), Error> {
 
     match args {
         Opts::TopicOptions { file_path } => {
-            let bag = Bag::from(file_path)?;
+            let bag = Bag::from_file(file_path)?;
             print_topics(&bag, &mut writer)
         }
         Opts::InfoOptions { minimal, file_path } => {
-            let bag = Bag::from(file_path)?;
+            let bag = Bag::from_file(file_path)?;
             print_all(&bag, minimal, &mut writer)
         }
         Opts::TypeOptions { file_path } => {
-            let bag = Bag::from(file_path)?;
+            let bag = Bag::from_file(file_path)?;
             print_types(&bag, &mut writer)
         }
     }

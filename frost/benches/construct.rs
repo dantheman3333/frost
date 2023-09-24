@@ -30,14 +30,14 @@ mod tests {
     fn bench_from_file(b: &mut Bencher) {
         b.iter(|| {
             for _i in 0..1000 {
-                let mut _bag = hint::black_box(Bag::from(BAG_PATH).unwrap());
+                let mut _bag = hint::black_box(Bag::from_file(BAG_PATH).unwrap());
             }
         });
     }
 
     #[bench]
     fn bench_iterate_from_bytes(b: &mut Bencher) {
-        let mut bag = Bag::from_bytes(COMPRESSED_LZ4).unwrap();
+        let bag = Bag::from_bytes(COMPRESSED_LZ4).unwrap();
         let query = Query::all();
 
         b.iter(|| {
@@ -51,7 +51,7 @@ mod tests {
 
     #[bench]
     fn bench_iterate_from_file(b: &mut Bencher) {
-        let mut bag = Bag::from(BAG_PATH).unwrap();
+        let bag = Bag::from_file(BAG_PATH).unwrap();
         let query = Query::all();
 
         b.iter(|| {

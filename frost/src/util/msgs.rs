@@ -42,6 +42,6 @@ impl<'a> MessageView<'a> {
         T: Msg,
         T: de::Deserialize<'de>,
     {
-        serde_rosmsg::from_slice(&self.raw_bytes()?).map_err(|e| e.into())
+        serde_rosmsg::from_slice(self.raw_bytes()?).map_err(|e| e.into())
     }
 }
