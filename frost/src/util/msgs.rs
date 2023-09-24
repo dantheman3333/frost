@@ -5,7 +5,7 @@ use serde::de;
 use serde_rosmsg;
 
 use crate::errors::{Error, ErrorKind};
-use crate::{DecompressedBag, ChunkHeaderLoc};
+use crate::{ChunkHeaderLoc, DecompressedBag};
 
 pub trait Msg {}
 

@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::errors::Error;
 use crate::time::Time;
-use crate::{DecompressedBag, ConnectionID, IndexData, MessageDataHeader};
+use crate::{ConnectionID, DecompressedBag, IndexData, MessageDataHeader};
 
 use super::{msgs::MessageView, parsing::parse_le_u32_at};
 
@@ -115,7 +115,6 @@ impl<'a> BagIter<'a> {
             })
             .collect();
         index_data.sort_by(|a, b| a.time.cmp(&b.time));
-
 
         Ok(BagIter {
             bag,

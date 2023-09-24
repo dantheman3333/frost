@@ -765,8 +765,6 @@ impl<R: Read + Seek> Bag<R> {
             .map(|data| data.data_type.as_str())
             .collect()
     }
-
-    
 }
 
 fn parse_bag_header<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> Result<BagHeader, Error> {
@@ -782,7 +780,10 @@ fn parse_bag_header<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> Result
     Ok(bag_header)
 }
 
-fn parse_connection<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> Result<ConnectionData, Error> {
+fn parse_connection<R: Read + Seek>(
+    header_buf: &[u8],
+    reader: &mut R,
+) -> Result<ConnectionData, Error> {
     let connection_header = ConnectionHeader::from(header_buf)?;
     let data = get_lengthed_bytes(reader)?;
     ConnectionData::from(
@@ -800,8 +801,7 @@ fn parse_chunk<R: Read + Seek>(
     let data_len = read_le_u32(reader)?;
     let chunk_data_pos = reader.stream_position()?;
 
-    let chunk_header =
-        ChunkHeader::from(header_buf, chunk_header_pos, chunk_data_pos, data_len)?;
+    let chunk_header = ChunkHeader::from(header_buf, chunk_header_pos, chunk_data_pos, data_len)?;
 
     reader.seek(io::SeekFrom::Current(data_len as i64))?; // skip reading the chunk
     Ok(chunk_header)
@@ -852,7 +852,9 @@ fn parse_index<R: Read + Seek>(
     Ok((index_data_header.connection_id, index_data))
 }
 
-fn topic_to_connection_ids(connection_data: &BTreeMap<ConnectionID, ConnectionData>,) -> BTreeMap<String, Vec<ConnectionID>> {
+fn topic_to_connection_ids(
+    connection_data: &BTreeMap<ConnectionID, ConnectionData>,
+) -> BTreeMap<String, Vec<ConnectionID>> {
     connection_data
         .values()
         .fold(BTreeMap::new(), |mut acc, data| {
@@ -863,7 +865,9 @@ fn topic_to_connection_ids(connection_data: &BTreeMap<ConnectionID, ConnectionDa
         })
 }
 
-fn type_to_connection_ids(connection_data: &BTreeMap<ConnectionID, ConnectionData>) -> BTreeMap<String, Vec<ConnectionID>> {
+fn type_to_connection_ids(
+    connection_data: &BTreeMap<ConnectionID, ConnectionData>,
+) -> BTreeMap<String, Vec<ConnectionID>> {
     connection_data
         .values()
         .fold(BTreeMap::new(), |mut acc, data| {
@@ -924,8 +928,7 @@ fn parse_records<R: Read + Seek>(
                         "Expected a Chunk before reading IndexData",
                     )))
                 })?;
-                let (connection_id, mut data) =
-                    parse_index(&header_buf, reader, chunk_header_pos)?;
+                let (connection_id, mut data) = parse_index(&header_buf, reader, chunk_header_pos)?;
                 index_data
                     .entry(connection_id)
                     .or_insert_with(Vec::new)
@@ -1031,7 +1034,7 @@ impl DecompressedBag {
         let version: String = version_check(&mut reader)?;
         let (chunk_metadata, connection_data, index_data) = parse_records(&mut reader)?;
         let num_bytes = bytes.len() as u64;
-        
+
         let chunk_bytes = DecompressedBag::populate_chunk_bytes(&chunk_metadata, &bytes)?;
 
         Ok(DecompressedBag {
@@ -1052,26 +1055,29 @@ impl DecompressedBag {
     {
         let path: PathBuf = file_path.as_ref().into();
         let file = File::open(file_path)?;
-        
+
         let mut reader = BufReader::new(file);
 
         let mut bytes = Vec::<u8>::new();
         reader.read_to_end(&mut bytes)?;
-        
+
         let mut bag = Self::from_bytes(bytes)?;
         bag.file_path = Some(path);
 
-        Ok(bag)        
+        Ok(bag)
     }
 
-    fn populate_chunk_bytes<'a>(chunk_metadata: &BTreeMap<u64, ChunkMetadata>, bag_bytes: &'a[u8]) -> Result<BTreeMap<ChunkHeaderLoc, Vec<u8>>, Error> {
+    fn populate_chunk_bytes<'a>(
+        chunk_metadata: &BTreeMap<u64, ChunkMetadata>,
+        bag_bytes: &'a [u8],
+    ) -> Result<BTreeMap<ChunkHeaderLoc, Vec<u8>>, Error> {
         let mut chunk_bytes = BTreeMap::new();
         //TODO: parallelization
         for (chunk_loc, metadata) in chunk_metadata.iter() {
             let chunk_start = metadata.chunk_data_pos as usize;
             let chunk_end = chunk_start + metadata.compressed_size as usize;
             let buf = &bag_bytes[chunk_start..chunk_end];
-         
+
             match metadata.compression.as_str() {
                 "none" => {
                     chunk_bytes.insert(*chunk_loc, buf.to_vec());
