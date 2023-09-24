@@ -1079,7 +1079,7 @@ impl DecompressedBag {
         Ok(bag)
     }
 
-    pub fn read_messages(& self, query: &Query) -> Result<BagIter, Error> {
+    pub fn read_messages(&self, query: &Query) -> Result<BagIter, Error> {
         BagIter::new(self, query)
     }
 

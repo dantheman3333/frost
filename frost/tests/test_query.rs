@@ -1,7 +1,7 @@
 use std::{fs::File, io::Write, path::PathBuf};
 
-use frost::Bag;
 use frost::query::Query;
+use frost::Bag;
 use frost::{errors::ErrorKind, DecompressedBag};
 
 use tempfile::{tempdir, TempDir};
