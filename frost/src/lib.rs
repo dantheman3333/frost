@@ -38,13 +38,17 @@ use util::time::Time;
 /// }
 /// ```
 pub struct BagMetadata {
+    /// The path to the file, if loaded from one.
     pub file_path: Option<PathBuf>,
+    /// The version, but only `ROSBAG V2.0` is supported.
     pub version: String,
     pub(crate) chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
-    #[doc(hidden)] // likely to be made crate private soon
+    #[doc(hidden)] 
+    /// likely to be made crate private soon
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
-    pub size: u64,
+    /// The number of bytes seen on-disk when using [BagMetadata::from_file] or the length of the slice passed into [BagMetadata::from_bytes].
+    pub num_bytes: u64,
 }
 
 /// Represents an owned and decompresed Bag in memory.
@@ -646,6 +650,7 @@ impl MessageDataHeader {
 }
 
 impl BagMetadata {
+    /// Read bag metadata from a file path.
     pub fn from_file<P>(file_path: P) -> Result<Self, Error>
     where
         P: AsRef<Path> + Into<PathBuf>,
@@ -658,14 +663,15 @@ impl BagMetadata {
 
         let mut bag = Self::from_reader(reader)?;
         bag.file_path = Some(path);
-        bag.size = file_size;
+        bag.num_bytes = file_size;
         Ok(bag)
     }
 
+    /// Read bag metadata from an existing byte slice.
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let reader = Cursor::new(bytes);
         let mut bag = Self::from_reader(reader)?;
-        bag.size = bytes.len() as u64;
+        bag.num_bytes = bytes.len() as u64;
         Ok(bag)
     }
 
@@ -680,7 +686,7 @@ impl BagMetadata {
             chunk_metadata,
             connection_data,
             index_data,
-            size: 0,
+            num_bytes: 0,
         })
     }
 
@@ -1039,7 +1045,7 @@ impl DecompressedBag {
                 chunk_metadata,
                 connection_data,
                 index_data,
-                size: bytes.len() as u64,
+                num_bytes: bytes.len() as u64,
             },
             chunk_bytes,
         })
