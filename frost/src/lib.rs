@@ -22,21 +22,39 @@ mod util;
 use util::query::{BagIter, Query};
 use util::time::Time;
 
+/// Metadata about a bag.
+/// Unlike [DecompressedBag], `BagMetadata` is constructed without loading chunks/messages.
+///
+/// Example
+/// ```rust
+/// use std::path::PathBuf;
+/// use frost::BagMetadata;
+///
+/// let file_path = PathBuf::from("/some/path");
+/// if let Ok(metadata) = BagMetadata::from_file(file_path) {
+///     for topic in metadata.topics() {
+///         println!("{topic}");
+///     }
+/// }
+/// ```
 pub struct BagMetadata {
     pub file_path: Option<PathBuf>,
     pub version: String,
     pub(crate) chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
+    #[doc(hidden)] // likely to be made crate private soon
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
     pub size: u64,
 }
 
+/// Represents an owned and decompresed Bag in memory.
 pub struct DecompressedBag {
     pub metadata: BagMetadata,
     pub(crate) chunk_bytes: BTreeMap<ChunkHeaderLoc, Vec<u8>>,
 }
 
 #[derive(Debug)]
+/// Statistics about a type of compression used in a bag.
 pub struct CompressionInfo {
     pub name: String,
     pub chunk_count: usize,
@@ -410,6 +428,7 @@ impl ConnectionHeader {
     }
 }
 
+#[doc(hidden)] // likey to be made crate private
 #[derive(Debug)]
 ///Store metadata for connections, including topic, conn id, md5, etc.
 pub struct ConnectionData {
@@ -724,6 +743,7 @@ impl BagMetadata {
             .collect()
     }
 
+    /// Returns statistics about all of the compression types used in the bag.
     pub fn compression_info(&self) -> Vec<CompressionInfo> {
         let mut acc = HashMap::<&str, CompressionInfo>::new();
 
