@@ -141,7 +141,8 @@ fn print_all(metadata: &BagMetadata, minimal: bool, writer: &mut impl Write) -> 
         .as_bytes(),
     )?;
 
-    writer.write_all(format!("{0: <13}{1}\n", "size:", human_bytes(metadata.num_bytes)).as_bytes())?;
+    writer
+        .write_all(format!("{0: <13}{1}\n", "size:", human_bytes(metadata.num_bytes)).as_bytes())?;
 
     writer.write_all(format!("{0: <13}{1}\n", "messages:", metadata.message_count()).as_bytes())?;
 

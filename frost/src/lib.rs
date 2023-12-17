@@ -43,7 +43,7 @@ pub struct BagMetadata {
     /// The version, but only `ROSBAG V2.0` is supported.
     pub version: String,
     pub(crate) chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata>,
-    #[doc(hidden)] 
+    #[doc(hidden)]
     /// likely to be made crate private soon
     pub connection_data: BTreeMap<ConnectionID, ConnectionData>,
     pub(crate) index_data: BTreeMap<ConnectionID, Vec<IndexData>>,
