@@ -24,6 +24,7 @@ pub enum ErrorKind {
     Deserialization(serde_rosmsg::Error),
     Decompression(lz4_flex::block::DecompressError),
     Io(io::Error),
+    Parse(ParseError),
 }
 
 impl fmt::Display for Error {
@@ -37,6 +38,7 @@ impl fmt::Display for Error {
             ErrorKind::InvalidBag(ref cow) => write!(f, "invalid bag: {cow}"),
             ErrorKind::Deserialization(ref e) => e.fmt(f),
             ErrorKind::Decompression(ref e) => e.fmt(f),
+            ErrorKind::Parse(ref e) => e.fmt(f),
         }
     }
 }
@@ -66,3 +68,33 @@ impl From<lz4_flex::block::DecompressError> for Error {
         }
     }
 }
+
+impl From<ParseError> for Error {
+    fn from(e: ParseError) -> Error {
+        Error {
+            kind: ErrorKind::Parse(e),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ParseError {
+    MissingChunkInfoData,
+    MissingIndexData,
+    MissingFieldSeparator,
+    MissingHeaderOp,
+    InvalidOpCode,
+    BufferTooSmall,
+    UnexpectedField,
+    UnexpectedOpCode,
+    MissingField,
+}
+
+impl std::fmt::Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Implement display logic
+        write!(f, "Custom error: {:?}", self)
+    }
+}
+
+impl std::error::Error for ParseError {}

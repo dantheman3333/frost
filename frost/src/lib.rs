@@ -9,7 +9,7 @@ use std::time::Duration;
 type ConnectionID = u32;
 type ChunkHeaderLoc = u64;
 
-use errors::{Error, ErrorKind};
+use errors::{Error, ErrorKind, ParseError};
 
 use itertools::Itertools;
 pub use util::msgs;
@@ -78,7 +78,7 @@ enum OpCode {
 }
 
 impl OpCode {
-    fn from(byte: u8) -> Result<OpCode, Error> {
+    fn from(byte: u8) -> Result<OpCode, ParseError> {
         match byte {
             0x03 => Ok(OpCode::BagHeader),
             0x05 => Ok(OpCode::ChunkHeader),
@@ -86,10 +86,10 @@ impl OpCode {
             0x02 => Ok(OpCode::MessageData),
             0x04 => Ok(OpCode::IndexDataHeader),
             0x06 => Ok(OpCode::ChunkInfoHeader),
-            _ => Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                "invalid op code: {:x}",
-                byte
-            ))))),
+            _ => {
+                eprintln!("invalid op code {byte:x}");
+                Err(ParseError::InvalidOpCode)
+            }
         }
     }
 }
@@ -102,16 +102,14 @@ fn read_le_u32(reader: &mut impl Read) -> io::Result<u32> {
 }
 
 #[inline(always)]
-fn field_sep_index(buf: &[u8]) -> Result<usize, Error> {
-    buf.iter().position(|&b| b == b'=').ok_or_else(|| {
-        Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-            "missing field separator",
-        )))
-    })
+fn field_sep_index(buf: &[u8]) -> Result<usize, ParseError> {
+    buf.iter()
+        .position(|&b| b == b'=')
+        .ok_or(ParseError::MissingFieldSeparator)
 }
 
 #[inline(always)]
-fn parse_field(buf: &[u8], i: usize) -> Result<(usize, &[u8], &[u8]), Error> {
+fn parse_field(buf: &[u8], i: usize) -> Result<(usize, &[u8], &[u8]), ParseError> {
     let mut i = i;
     let field_len = util::parsing::parse_le_u32_at(buf, i)? as usize;
     i += 4;
@@ -143,7 +141,7 @@ struct BagHeader {
 }
 
 impl BagHeader {
-    fn from(buf: &[u8]) -> Result<BagHeader, Error> {
+    fn from(buf: &[u8]) -> Result<BagHeader, ParseError> {
         let mut i = 0;
 
         let mut index_pos = None;
@@ -161,16 +159,16 @@ impl BagHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::BagHeader as u8 {
-                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                            "expected BagHeader op",
-                        ))));
+                        eprintln!("expected a BagHeader OpCode when parsing BagHeader");
+                        return Err(ParseError::UnexpectedOpCode);
                     }
                 }
                 other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                    eprintln!(
                         "unexpected field: {} in 'BagHeader'",
                         String::from_utf8_lossy(other)
-                    )))));
+                    );
+                    return Err(ParseError::UnexpectedField);
                 }
             }
 
@@ -181,19 +179,16 @@ impl BagHeader {
 
         Ok(BagHeader {
             index_pos: index_pos.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected index_pos in BagHeader",
-                )))
+                eprintln!("missing index_pos when parsing a BagHeader");
+                ParseError::MissingField
             })?,
             conn_count: conn_count.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected conn_count in BagHeader",
-                )))
+                eprintln!("missing conn_count when parsing a BagHeader");
+                ParseError::MissingField
             })?,
             chunk_count: chunk_count.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected chunk_count in BagHeader",
-                )))
+                eprintln!("missing chunk_count when parsing a BagHeader");
+                ParseError::MissingField
             })?,
         })
     }
@@ -228,7 +223,7 @@ impl ChunkHeader {
         chunk_header_pos: u64,
         chunk_data_pos: u64,
         compressed_size: u32,
-    ) -> Result<ChunkHeader, Error> {
+    ) -> Result<ChunkHeader, ParseError> {
         let mut i = 0;
 
         let mut compression = None;
@@ -244,16 +239,16 @@ impl ChunkHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ChunkHeader as u8 {
-                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                            "expected 'ChunkHeader' op",
-                        ))));
+                        eprintln!("expected a ChunkHeader OpCode when parsing ChunkHeader");
+                        return Err(ParseError::UnexpectedOpCode);
                     }
                 }
                 other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+                    eprintln!(
                         "unexpected field: {} in 'ChunkHeader'",
                         String::from_utf8_lossy(other)
-                    )))));
+                    );
+                    return Err(ParseError::UnexpectedField);
                 }
             }
 
@@ -264,14 +259,12 @@ impl ChunkHeader {
 
         Ok(ChunkHeader {
             compression: compression.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'compression' in 'ChunkHeader'",
-                )))
+                eprintln!("missing compression when parsing a ChunkHeader");
+                ParseError::MissingField
             })?,
             uncompressed_size: size.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'size' in 'ChunkHeader'",
-                )))
+                eprintln!("missing uncompressed_size when parsing a ChunkHeader");
+                ParseError::MissingField
             })?,
             chunk_header_pos,
             chunk_data_pos,
@@ -292,7 +285,7 @@ struct ChunkInfoHeader {
 }
 
 impl ChunkInfoHeader {
-    fn from(buf: &[u8]) -> Result<ChunkInfoHeader, Error> {
+    fn from(buf: &[u8]) -> Result<ChunkInfoHeader, ParseError> {
         let mut i = 0;
 
         let mut version = None;
@@ -314,16 +307,16 @@ impl ChunkInfoHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ChunkInfoHeader as u8 {
-                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                            "expected 'ChunkInfoHeader' op",
-                        ))));
+                        eprintln!("expected a ChunkInfoHeader OpCode when parsing ChunkInfoHeader");
+                        return Err(ParseError::UnexpectedOpCode);
                     }
                 }
                 other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {} in 'ChunkInfoHeader'",
+                    eprintln!(
+                        "unexpected field: {} in ChunkInfoHeader",
                         String::from_utf8_lossy(other)
-                    )))));
+                    );
+                    return Err(ParseError::UnexpectedField);
                 }
             }
 
@@ -334,29 +327,24 @@ impl ChunkInfoHeader {
 
         Ok(ChunkInfoHeader {
             version: version.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'ver' in 'ChunkInfoHeader'",
-                )))
+                eprintln!("missing ver when parsing a ChunkInfoHeader");
+                ParseError::MissingField
             })?,
             chunk_header_pos: chunk_header_pos.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'chunk_pos' in 'ChunkInfoHeader'",
-                )))
+                eprintln!("missing chunk_pos when parsing a ChunkInfoHeader");
+                ParseError::MissingField
             })?,
             start_time: start_time.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'start_time' in 'ChunkInfoHeader'",
-                )))
+                eprintln!("missing start_time when parsing a ChunkInfoHeader");
+                ParseError::MissingField
             })?,
             end_time: end_time.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'end_time' in 'ChunkInfoHeader'",
-                )))
+                eprintln!("missing end_time when parsing a ChunkInfoHeader");
+                ParseError::MissingField
             })?,
             connection_count: connection_count.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'count' in 'ChunkInfoHeader'",
-                )))
+                eprintln!("missing count when parsing a ChunkInfoHeader");
+                ParseError::MissingField
             })?,
         })
     }
@@ -368,7 +356,7 @@ struct ChunkInfoData {
 }
 
 impl ChunkInfoData {
-    fn from(buf: &[u8]) -> io::Result<ChunkInfoData> {
+    fn from(buf: &[u8]) -> Result<ChunkInfoData, ParseError> {
         Ok(ChunkInfoData {
             connection_id: util::parsing::parse_le_u32_at(buf, 0)?,
             count: util::parsing::parse_le_u32_at(buf, 4)?,
@@ -383,7 +371,7 @@ struct ConnectionHeader {
 }
 
 impl ConnectionHeader {
-    fn from(buf: &[u8]) -> Result<ConnectionHeader, Error> {
+    fn from(buf: &[u8]) -> Result<ConnectionHeader, ParseError> {
         let mut i = 0;
 
         let mut topic = None;
@@ -399,16 +387,18 @@ impl ConnectionHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::ConnectionHeader as u8 {
-                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                            "expected 'ConnectionHeader' op",
-                        ))));
+                        eprintln!(
+                            "expected a ConnectionHeader OpCode when parsing ConnectionHeader"
+                        );
+                        return Err(ParseError::UnexpectedOpCode);
                     }
                 }
                 other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {} in 'ConnectionHeader'",
+                    eprintln!(
+                        "unexpected field: {} in ConnectionHeader",
                         String::from_utf8_lossy(other)
-                    )))));
+                    );
+                    return Err(ParseError::UnexpectedField);
                 }
             }
 
@@ -419,14 +409,12 @@ impl ConnectionHeader {
 
         Ok(ConnectionHeader {
             connection_id: connection_id.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'conn' in 'ConnectionHeader'",
-                )))
+                eprintln!("missing conn when parsing a ConnectionHeader");
+                ParseError::MissingField
             })?,
             topic: topic.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'topic' in 'ConnectionHeader'",
-                )))
+                eprintln!("missing topic when parsing a ConnectionHeader");
+                ParseError::MissingField
             })?,
         })
     }
@@ -446,7 +434,7 @@ pub struct ConnectionData {
 }
 
 impl ConnectionData {
-    fn from(buf: &[u8], connection_id: u32, topic: String) -> Result<ConnectionData, Error> {
+    fn from(buf: &[u8], connection_id: u32, topic: String) -> Result<ConnectionData, ParseError> {
         let mut i = 0;
 
         let mut data_type = None;
@@ -469,10 +457,11 @@ impl ConnectionData {
                 b"callerid" => caller_id = Some(String::from_utf8_lossy(value).to_string()),
                 b"latching" => latching = value == b"1",
                 other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {} in 'ConnectionData'",
+                    eprintln!(
+                        "unexpected field: {} in ConnectionData",
                         String::from_utf8_lossy(other)
-                    )))));
+                    );
+                    return Err(ParseError::UnexpectedField);
                 }
             }
 
@@ -485,19 +474,16 @@ impl ConnectionData {
             connection_id,
             topic,
             data_type: data_type.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'type' in 'ConnectionData'",
-                )))
+                eprintln!("missing type when parsing a ConnectionData");
+                ParseError::MissingField
             })?,
             md5sum: md5sum.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'md5sum' in 'ConnectionData'",
-                )))
+                eprintln!("missing md5sum when parsing a ConnectionData");
+                ParseError::MissingField
             })?,
             message_definition: message_definition.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'message_definition' in 'ConnectionData'",
-                )))
+                eprintln!("missing message_definition when parsing a ConnectionData");
+                ParseError::MissingField
             })?,
             caller_id,
             latching,
@@ -512,7 +498,7 @@ struct IndexDataHeader {
 }
 
 impl IndexDataHeader {
-    fn from(buf: &[u8]) -> Result<IndexDataHeader, Error> {
+    fn from(buf: &[u8]) -> Result<IndexDataHeader, ParseError> {
         let mut i = 0;
 
         let mut version = None;
@@ -530,16 +516,16 @@ impl IndexDataHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::IndexDataHeader as u8 {
-                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                            "expected 'IndexDataHeader' op",
-                        ))));
+                        eprintln!("expected a IndexDataHeader OpCode when parsing IndexDataHeader");
+                        return Err(ParseError::UnexpectedOpCode);
                     }
                 }
                 other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {} in 'IndexDataHeader'",
+                    eprintln!(
+                        "unexpected field: {} in IndexDataHeader",
                         String::from_utf8_lossy(other)
-                    )))));
+                    );
+                    return Err(ParseError::UnexpectedField);
                 }
             }
 
@@ -550,19 +536,16 @@ impl IndexDataHeader {
 
         Ok(IndexDataHeader {
             version: version.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'ver' in 'IndexDataHeader'",
-                )))
+                eprintln!("missing ver when parsing a IndexDataHeader");
+                ParseError::MissingField
             })?,
             connection_id: connection_id.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'conn' in 'IndexDataHeader'",
-                )))
+                eprintln!("missing conn when parsing a IndexDataHeader");
+                ParseError::MissingField
             })?,
             count: count.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'count' in 'IndexDataHeader'",
-                )))
+                eprintln!("missing count when parsing a IndexDataHeader");
+                ParseError::MissingField
             })?,
         })
     }
@@ -581,7 +564,11 @@ pub(crate) struct IndexData {
 }
 
 impl IndexData {
-    fn from(buf: &[u8], chunk_header_pos: u64, conn_id: ConnectionID) -> io::Result<IndexData> {
+    fn from(
+        buf: &[u8],
+        chunk_header_pos: u64,
+        conn_id: ConnectionID,
+    ) -> Result<IndexData, ParseError> {
         Ok(IndexData {
             chunk_header_pos,
             time: Time::from(buf)?,
@@ -600,7 +587,7 @@ struct MessageDataHeader {
 }
 
 impl MessageDataHeader {
-    fn from(buf: &[u8]) -> Result<MessageDataHeader, Error> {
+    fn from(buf: &[u8]) -> Result<MessageDataHeader, ParseError> {
         let mut i = 0;
 
         let mut conn = None;
@@ -616,16 +603,16 @@ impl MessageDataHeader {
                 b"op" => {
                     let op = util::parsing::parse_u8(value)?;
                     if op != OpCode::MessageData as u8 {
-                        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                            "expected 'MessageDataHeader' op",
-                        ))));
+                        eprintln!("expected a MessageData OpCode when parsing MessageData");
+                        return Err(ParseError::UnexpectedOpCode);
                     }
                 }
                 other => {
-                    return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                        "unexpected field: {} in 'MessageDataHeader'",
+                    eprintln!(
+                        "unexpected field: {} in MessageDataHeader",
                         String::from_utf8_lossy(other)
-                    )))));
+                    );
+                    return Err(ParseError::UnexpectedField);
                 }
             }
 
@@ -636,14 +623,12 @@ impl MessageDataHeader {
 
         Ok(MessageDataHeader {
             conn: conn.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'conn' in 'MessageDataHeader'",
-                )))
+                eprintln!("missing conn when parsing a IndexDataHeader");
+                ParseError::MissingField
             })?,
             time: time.ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "expected 'time' in 'MessageDataHeader'",
-                )))
+                eprintln!("missing time when parsing a IndexDataHeader");
+                ParseError::MissingField
             })?,
         })
     }
@@ -811,7 +796,7 @@ fn parse_bag_header<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> Result
 fn parse_connection<R: Read + Seek>(
     header_buf: &[u8],
     reader: &mut R,
-) -> Result<ConnectionData, Error> {
+) -> Result<ConnectionData, ParseError> {
     let connection_header = ConnectionHeader::from(header_buf)?;
     let data = get_lengthed_bytes(reader)?;
     ConnectionData::from(
@@ -1007,7 +992,7 @@ fn parse_records<R: Read + Seek>(
 }
 
 #[inline(always)]
-fn read_header_op(buf: &[u8]) -> Result<OpCode, Error> {
+fn read_header_op(buf: &[u8]) -> Result<OpCode, ParseError> {
     let mut i = 0;
     loop {
         let (new_index, name, value) = parse_field(buf, i)?;
@@ -1022,9 +1007,7 @@ fn read_header_op(buf: &[u8]) -> Result<OpCode, Error> {
             break;
         }
     }
-    Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-        "Missing header op",
-    ))))
+    Err(ParseError::MissingHeaderOp)
 }
 
 impl DecompressedBag {
