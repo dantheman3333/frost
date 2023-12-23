@@ -1,5 +1,5 @@
 use std::fmt;
-use std::{io, time::Duration};
+use std::time::Duration;
 
 use chrono::{DateTime, TimeZone, Utc};
 

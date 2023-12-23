@@ -1,4 +1,4 @@
-use std::io::{self, Read};
+use std::io::Read;
 
 use crate::errors::ParseError;
 
