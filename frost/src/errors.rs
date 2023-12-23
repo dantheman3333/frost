@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::error;
 use std::fmt;
 use std::io;
@@ -19,8 +18,6 @@ impl Error {
 #[derive(Debug)]
 pub enum ErrorKind {
     NotARosbag,
-    UnindexedBag,
-    InvalidBag(Cow<'static, str>),
     Deserialization(serde_rosmsg::Error),
     Decompression(lz4_flex::block::DecompressError),
     Io(io::Error),
@@ -34,8 +31,6 @@ impl fmt::Display for Error {
                 write!(f, "invalid rosbag v2 header")
             }
             ErrorKind::Io(ref e) => e.fmt(f),
-            ErrorKind::UnindexedBag => write!(f, "unindexed bag"),
-            ErrorKind::InvalidBag(ref cow) => write!(f, "invalid bag: {cow}"),
             ErrorKind::Deserialization(ref e) => e.fmt(f),
             ErrorKind::Decompression(ref e) => e.fmt(f),
             ErrorKind::Parse(ref e) => e.fmt(f),
@@ -79,15 +74,17 @@ impl From<ParseError> for Error {
 
 #[derive(Debug)]
 pub enum ParseError {
-    MissingChunkInfoData,
-    MissingIndexData,
+    MissingRecord,
     MissingFieldSeparator,
     MissingHeaderOp,
     InvalidOpCode,
     BufferTooSmall,
+    UnexpectedEOF,
     UnexpectedField,
     UnexpectedOpCode,
     MissingField,
+    InvalidBag,
+    UnindexedBag,
 }
 
 impl std::fmt::Display for ParseError {

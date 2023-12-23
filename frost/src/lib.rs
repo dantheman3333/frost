@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use std::borrow::Cow;
+
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::fs::File;
 use std::io::{self, prelude::*, BufReader, Cursor};
@@ -95,10 +95,11 @@ impl OpCode {
 }
 
 #[inline(always)]
-fn read_le_u32(reader: &mut impl Read) -> io::Result<u32> {
+/// Returns None on EOF
+fn read_le_u32(reader: &mut impl Read) -> Option<u32> {
     let mut len_buf = [0u8; 4];
-    reader.read_exact(&mut len_buf)?;
-    Ok(u32::from_le_bytes(len_buf))
+    reader.read_exact(&mut len_buf).ok()?;
+    Some(u32::from_le_bytes(len_buf))
 }
 
 #[inline(always)]
@@ -780,15 +781,24 @@ impl BagMetadata {
     }
 }
 
-fn parse_bag_header<R: Read + Seek>(header_buf: &[u8], reader: &mut R) -> Result<BagHeader, Error> {
+fn parse_bag_header<R: Read + Seek>(
+    header_buf: &[u8],
+    reader: &mut R,
+) -> Result<BagHeader, ParseError> {
     let bag_header = BagHeader::from(header_buf)?;
 
     if bag_header.index_pos == 0 {
-        return Err(Error::new(ErrorKind::UnindexedBag));
+        return Err(ParseError::UnindexedBag);
     }
 
-    let data_len = read_le_u32(reader)?;
-    reader.seek(io::SeekFrom::Current(data_len as i64))?; // Skip bag header padding
+    let data_len = read_le_u32(reader).ok_or_else(|| ParseError::UnexpectedEOF)?;
+    // Skip bag header padding
+    reader
+        .seek(io::SeekFrom::Current(data_len as i64))
+        .map_err(|_e| {
+            eprintln!("could not seek {data_len} bytes");
+            ParseError::BufferTooSmall
+        })?;
 
     Ok(bag_header)
 }
@@ -810,20 +820,26 @@ fn parse_chunk<R: Read + Seek>(
     header_buf: &[u8],
     reader: &mut R,
     chunk_header_pos: u64,
-) -> Result<ChunkHeader, Error> {
-    let data_len = read_le_u32(reader)?;
-    let chunk_data_pos = reader.stream_position()?;
+) -> Result<ChunkHeader, ParseError> {
+    let data_len = read_le_u32(reader).ok_or_else(|| ParseError::UnexpectedEOF)?;
+    let chunk_data_pos = reader.stream_position().unwrap();
 
     let chunk_header = ChunkHeader::from(header_buf, chunk_header_pos, chunk_data_pos, data_len)?;
 
-    reader.seek(io::SeekFrom::Current(data_len as i64))?; // skip reading the chunk
+    // skip reading the chunk
+    reader
+        .seek(io::SeekFrom::Current(data_len as i64))
+        .map_err(|_e| {
+            eprintln!("could not seek {data_len} bytes");
+            ParseError::UnexpectedEOF
+        })?;
     Ok(chunk_header)
 }
 
 fn parse_chunk_info<R: Read + Seek>(
     header_buf: &[u8],
     reader: &mut R,
-) -> Result<(ChunkInfoHeader, Vec<ChunkInfoData>), Error> {
+) -> Result<(ChunkInfoHeader, Vec<ChunkInfoData>), ParseError> {
     let chunk_info_header = ChunkInfoHeader::from(header_buf)?;
     let data = get_lengthed_bytes(reader)?;
 
@@ -834,9 +850,8 @@ fn parse_chunk_info<R: Read + Seek>(
         .collect();
 
     if chunk_info_data.len() != chunk_info_header.connection_count as usize {
-        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-            "missing chunk info data",
-        ))));
+        eprintln!("missing chunk info data");
+        return Err(ParseError::MissingRecord);
     }
 
     Ok((chunk_info_header, chunk_info_data))
@@ -846,7 +861,7 @@ fn parse_index<R: Read + Seek>(
     header_buf: &[u8],
     reader: &mut R,
     chunk_header_pos: u64,
-) -> Result<(ConnectionID, Vec<IndexData>), Error> {
+) -> Result<(ConnectionID, Vec<IndexData>), ParseError> {
     let index_data_header = IndexDataHeader::from(header_buf)?;
     let data = get_lengthed_bytes(reader)?;
 
@@ -857,9 +872,8 @@ fn parse_index<R: Read + Seek>(
         .collect();
 
     if index_data.len() != index_data_header.count as usize {
-        return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-            "missing index data",
-        ))));
+        eprintln!("missing index data");
+        return Err(ParseError::MissingRecord);
     }
 
     Ok((index_data_header.connection_id, index_data))
@@ -873,7 +887,7 @@ fn parse_records<R: Read + Seek>(
         BTreeMap<ConnectionID, ConnectionData>,
         BTreeMap<ConnectionID, Vec<IndexData>>,
     ),
-    Error,
+    ParseError,
 > {
     let mut bag_header: Option<BagHeader> = None;
     let mut chunk_headers: Vec<ChunkHeader> = Vec::new();
@@ -884,18 +898,16 @@ fn parse_records<R: Read + Seek>(
     let mut last_chunk_header_pos = None;
 
     loop {
-        let maybe_header_len = read_le_u32(reader);
-        if let Err(e) = maybe_header_len {
-            match e.kind() {
-                io::ErrorKind::UnexpectedEof => break,
-                _ => return Err(Error::new(ErrorKind::Io(e))),
-            }
-        }
-        let header_len = maybe_header_len.unwrap();
+        let Some(header_len) = read_le_u32(reader) else {
+            break;
+        };
 
         // TODO: benchmark and compare reading into a map or stack-local map crate
         let mut header_buf = vec![0u8; header_len as usize];
-        reader.read_exact(&mut header_buf)?;
+        reader.read_exact(&mut header_buf).map_err(|e| {
+            eprintln!("{e}");
+            ParseError::BufferTooSmall
+        })?;
 
         let op = read_header_op(&header_buf)?;
 
@@ -904,16 +916,16 @@ fn parse_records<R: Read + Seek>(
                 bag_header = Some(parse_bag_header(&header_buf, reader)?);
             }
             OpCode::ChunkHeader => {
-                let chunk_header_pos = reader.stream_position()? - header_buf.len() as u64 - 4; // subtract header and header len
+                let chunk_header_pos =
+                    reader.stream_position().unwrap() - header_buf.len() as u64 - 4; // subtract header and header len
                 let chunk_header = parse_chunk(&header_buf, reader, chunk_header_pos)?;
                 last_chunk_header_pos = Some(chunk_header_pos);
                 chunk_headers.push(chunk_header);
             }
             OpCode::IndexDataHeader => {
                 let chunk_header_pos = last_chunk_header_pos.ok_or_else(|| {
-                    Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                        "Expected a Chunk before reading IndexData",
-                    )))
+                    eprintln!("expected a Chunk before reading IndexData");
+                    ParseError::InvalidBag
                 })?;
                 let (connection_id, mut data) = parse_index(&header_buf, reader, chunk_header_pos)?;
                 index_data
@@ -928,35 +940,40 @@ fn parse_records<R: Read + Seek>(
                 chunk_infos.push(parse_chunk_info(&header_buf, reader)?);
             }
             OpCode::MessageData => {
-                return Err(Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "unexpected `MessageData` op at the record level",
-                ))))
+                eprintln!("unexpected `MessageData` op at the record level");
+                return Err(ParseError::InvalidOpCode);
             }
         }
     }
 
-    let bag_header = bag_header
-        .ok_or_else(|| Error::new(ErrorKind::InvalidBag(Cow::Borrowed("Missing BagHeader"))))?;
+    let bag_header = bag_header.ok_or_else(|| {
+        eprintln!("missing BagHeader");
+        ParseError::InvalidBag
+    })?;
+
     if bag_header.chunk_count as usize != chunk_headers.len() {
-        return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+        eprintln!(
             "missing chunks - expected {}, found {}",
             bag_header.chunk_count,
             chunk_headers.len()
-        )))));
+        );
+        return Err(ParseError::InvalidBag);
     }
     if bag_header.chunk_count as usize != chunk_infos.len() {
-        return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+        eprintln!(
             "missing chunk information headers - expected {}, found {}",
             bag_header.chunk_count,
             chunk_infos.len()
-        )))));
+        );
+        return Err(ParseError::InvalidBag);
     }
     if bag_header.conn_count as usize != connections.len() {
-        return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
+        eprintln!(
             "missing connections - expected {}, found {}",
             bag_header.conn_count,
             connections.len()
-        )))));
+        );
+        return Err(ParseError::InvalidBag);
     }
 
     let chunk_metadata: BTreeMap<ChunkHeaderLoc, ChunkMetadata> = chunk_headers
@@ -1081,10 +1098,8 @@ fn populate_chunk_bytes(
                 chunk_bytes.insert(*chunk_loc, decompressed);
             }
             other => {
-                return Err(Error::new(ErrorKind::InvalidBag(Cow::Owned(format!(
-                    "unsupported compression: {}",
-                    other
-                )))))
+                eprintln!("unsupported compression: {}", other);
+                return Err(Error::from(ParseError::InvalidBag));
             }
         }
     }
