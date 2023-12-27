@@ -46,7 +46,7 @@ fn main() {
         }
     }
 
-    let query = Query::new().with_topics(&["/chatter"]);
+    let query = Query::new().with_topics(["/chatter"]);
     let count = bag.read_messages(&query).unwrap().count();
     assert_eq!(count, 100);
 
@@ -54,7 +54,7 @@ fn main() {
     let msg = msg_view.instantiate::<std_msgs::String>().unwrap();
     println!("Last {} message is {}", &msg_view.topic, msg.data);
 
-    let query = Query::new().with_types(&["std_msgs/Float64MultiArray"]);
+    let query = Query::new().with_types(["std_msgs/Float64MultiArray"]);
     let count = bag.read_messages(&query).unwrap().count();
     assert_eq!(count, 100);
     println!(

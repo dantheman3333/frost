@@ -14,6 +14,7 @@ pub struct Query {
 }
 
 impl Query {
+    /// Query all messages in a bag.
     pub fn all() -> Self {
         Query {
             topics: None,
@@ -23,31 +24,38 @@ impl Query {
         }
     }
 
+    /// Create a Query.
     pub fn new() -> Self {
         Self::all()
     }
 
-    pub fn with_topics<S>(mut self, topics: &[S]) -> Self
+    /// Query a bag with specific Topics.
+    pub fn with_topics<S, I>(mut self, topics: I) -> Self
     where
-        S: AsRef<str> + Into<String>,
+        S: AsRef<str>,
+        I: IntoIterator<Item = S>,
     {
-        self.topics = Some(topics.iter().map(|s| s.as_ref().into()).collect());
+        self.topics = Some(topics.into_iter().map(|s| s.as_ref().into()).collect());
         self
     }
 
-    pub fn with_types<S>(mut self, types: &[S]) -> Self
+    /// Query a bag with specific message Types.
+    pub fn with_types<S, I>(mut self, types: I) -> Self
     where
-        S: AsRef<str> + Into<String>,
+        S: AsRef<str>,
+        I: IntoIterator<Item = S>,
     {
-        self.types = Some(types.iter().map(|s| s.as_ref().into()).collect());
+        self.types = Some(types.into_iter().map(|s| s.as_ref().into()).collect());
         self
     }
 
+    /// Query a bag with messages filtered after a start time.
     pub fn with_start_time(mut self, start_time: Time) -> Self {
         self.start_time = Some(start_time);
         self
     }
 
+    /// Query a bag with messages filtered before an end time.
     pub fn with_end_time(mut self, end_time: Time) -> Self {
         self.end_time = Some(end_time);
         self
@@ -175,23 +183,39 @@ impl<'a> Iterator for BagIter<'a> {
 #[cfg(test)]
 mod tests {
     use super::Query;
+    use itertools::assert_equal;
+    use itertools::sorted;
+    use std::collections::{HashMap, HashSet};
 
     #[test]
     fn test_contruction_with_topics() {
-        let query = Query::new().with_topics(&["/chatter", "array"]);
-        assert_eq!(
-            query.topics,
-            Some(vec!("/chatter".to_string(), "array".to_string()))
-        );
+        let query = Query::new().with_topics(["/chatter", "/array"]);
+        assert_equal(sorted(query.topics.unwrap()), ["/array", "/chatter"]);
         assert_eq!(query.start_time, None);
         assert_eq!(query.end_time, None);
 
-        let query = Query::new().with_topics(&["/chatter", "array"]);
-        assert_eq!(
-            query.topics,
-            Some(vec!("/chatter".to_string(), "array".to_string()))
-        );
+        let query = Query::new().with_topics(["/chatter", "/array"]);
+        assert_equal(sorted(query.topics.unwrap()), ["/array", "/chatter"]);
         assert_eq!(query.start_time, None);
         assert_eq!(query.end_time, None);
+
+        let topics: HashSet<&str> = HashSet::from_iter(["/chatter", "/array"]);
+        let query = Query::new().with_topics(topics);
+        assert_equal(sorted(query.topics.unwrap()), ["/array", "/chatter"]);
+        assert_eq!(query.start_time, None);
+        assert_eq!(query.end_time, None);
+
+        let topics: HashMap<&str, u32> = HashMap::from_iter([("/chatter", 0), ("/array", 0)]);
+        let query = Query::new().with_topics(topics.keys());
+        assert_equal(sorted(query.topics.unwrap()), ["/array", "/chatter"]);
+        assert_eq!(query.start_time, None);
+        assert_eq!(query.end_time, None);
+
+        let topics = vec!["/chatter", "/array"];
+        let query = Query::new().with_topics(&topics);
+        assert_equal(sorted(query.topics.unwrap()), ["/array", "/chatter"]);
+
+        let query = Query::new().with_topics(topics);
+        assert_equal(sorted(query.topics.unwrap()), ["/array", "/chatter"]);
     }
 }
