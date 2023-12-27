@@ -1,7 +1,9 @@
 use std::fmt;
-use std::{io, time::Duration};
+use std::time::Duration;
 
 use chrono::{DateTime, TimeZone, Utc};
+
+use crate::errors::ParseError;
 
 use super::parsing;
 
@@ -60,7 +62,7 @@ impl Time {
     fn new(secs: u32, nsecs: u32) -> Time {
         Time { secs, nsecs }
     }
-    pub fn from(buf: &[u8]) -> io::Result<Time> {
+    pub fn from(buf: &[u8]) -> Result<Time, ParseError> {
         let secs = parsing::parse_le_u32(buf)?;
         let nsecs = parsing::parse_le_u32_at(buf, 4)?;
         Ok(Time { secs, nsecs })

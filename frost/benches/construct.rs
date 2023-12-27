@@ -14,14 +14,15 @@ const COMPRESSED_LZ4: &[u8] = include_bytes!("../tests/fixtures/compressed_lz4.b
 #[cfg(test)]
 mod tests {
     use super::*;
-    use frost::{query::Query, BagMetadata};
+    use frost::{query::Query, DecompressedBag};
     use test::Bencher;
 
     #[bench]
     fn bench_from_bytes(b: &mut Bencher) {
         b.iter(|| {
             for _i in 0..1000 {
-                let mut _bag = hint::black_box(BagMetadata::from_bytes(COMPRESSED_LZ4).unwrap());
+                let mut _bag =
+                    hint::black_box(DecompressedBag::from_bytes(COMPRESSED_LZ4).unwrap());
             }
         });
     }
@@ -30,14 +31,14 @@ mod tests {
     fn bench_from_file(b: &mut Bencher) {
         b.iter(|| {
             for _i in 0..1000 {
-                let mut _bag = hint::black_box(BagMetadata::from_file(BAG_PATH).unwrap());
+                let mut _bag = hint::black_box(DecompressedBag::from_file(BAG_PATH).unwrap());
             }
         });
     }
 
     #[bench]
     fn bench_iterate_from_bytes(b: &mut Bencher) {
-        let bag = BagMetadata::from_bytes(COMPRESSED_LZ4).unwrap();
+        let bag = DecompressedBag::from_bytes(COMPRESSED_LZ4).unwrap();
         let query = Query::all();
 
         b.iter(|| {
@@ -51,7 +52,7 @@ mod tests {
 
     #[bench]
     fn bench_iterate_from_file(b: &mut Bencher) {
-        let bag = BagMetadata::from_file(BAG_PATH).unwrap();
+        let bag = DecompressedBag::from_file(BAG_PATH).unwrap();
         let query = Query::all();
 
         b.iter(|| {

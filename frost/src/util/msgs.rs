@@ -1,10 +1,8 @@
-use std::borrow::Cow;
-
 use serde;
 use serde::de;
 use serde_rosmsg;
 
-use crate::errors::{Error, ErrorKind};
+use crate::errors::Error;
 use crate::{ChunkHeaderLoc, DecompressedBag};
 
 pub trait Msg {}
@@ -19,21 +17,17 @@ pub struct MessageView<'a> {
 
 impl<'a> MessageView<'a> {
     /// Returns the raw bytes of the entire Chunk that holds the message
-    fn chunk_bytes(&self) -> Result<&'a [u8], Error> {
+    fn chunk_bytes(&self) -> &'a [u8] {
         self.bag
             .chunk_bytes
             .get(&self.chunk_loc)
             .map(|vec| vec.as_slice())
-            .ok_or_else(|| {
-                Error::new(ErrorKind::InvalidBag(Cow::Borrowed(
-                    "Supplied chunk loc for msg view doesn't exist",
-                )))
-            })
+            .expect("this function is only possible to be called on a bag with chunks populated")
     }
 
     /// Returns the raw bytes of the entire ROS message
     pub fn raw_bytes(&self) -> Result<&'a [u8], Error> {
-        Ok(&self.chunk_bytes()?[self.start_index..self.end_index])
+        Ok(&self.chunk_bytes()[self.start_index..self.end_index])
     }
 
     /// Turns a `MessageView` into a Rust struct
