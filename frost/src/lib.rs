@@ -843,11 +843,8 @@ fn parse_chunk_info<R: Read + Seek>(
     let chunk_info_header = ChunkInfoHeader::from(header_buf)?;
     let data = get_lengthed_bytes(reader)?;
 
-    let chunk_info_data: Vec<ChunkInfoData> = data
-        .windows(8)
-        .step_by(8)
-        .flat_map(ChunkInfoData::from)
-        .collect();
+    let chunk_info_data: Vec<ChunkInfoData> =
+        data.chunks_exact(8).flat_map(ChunkInfoData::from).collect();
 
     if chunk_info_data.len() != chunk_info_header.connection_count as usize {
         eprintln!("missing chunk info data");
@@ -866,8 +863,7 @@ fn parse_index<R: Read + Seek>(
     let data = get_lengthed_bytes(reader)?;
 
     let index_data: Vec<IndexData> = data
-        .windows(12)
-        .step_by(12)
+        .chunks_exact(12)
         .flat_map(|buf| IndexData::from(buf, chunk_header_pos, index_data_header.connection_id))
         .collect();
 
