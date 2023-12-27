@@ -217,5 +217,9 @@ mod tests {
 
         let query = Query::new().with_topics(topics);
         assert_equal(sorted(query.topics.unwrap()), ["/array", "/chatter"]);
+
+        let topics = vec!["/chatter".to_string(), "/array".to_string()];
+        let query = Query::new().with_topics(&topics);
+        assert_equal(sorted(query.topics.unwrap()), ["/array", "/chatter"]);
     }
 }
