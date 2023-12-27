@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.65"
 
 [dependencies]
-chumsky = "0.8.0"
+chumsky = "0.9.3"
 bpaf = { workspace = true }
 frost = {path = "../frost"}
 lazy_static = "1.4.0"
